@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Shortener.Core/Shortener.Core.csproj" />
+    <ProjectReference Include="../../src/Shortener.Infrastructure/Shortener.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

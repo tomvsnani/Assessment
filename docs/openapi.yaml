@@ -1,0 +1,137 @@
+openapi: 3.1.0
+info:
+  title: URL Shortener
+  version: 1.0.0
+  description: |
+    v1 ("legacy" baseline). Click analytics are a counter on the link row, updated
+    synchronously on every redirect. See docs/scenarios/brownfield.md for the v2 change.
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /links:
+    post:
+      operationId: createLink
+      summary: Create a short link
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string, maxLength: 128 }
+          description: Repeating a request with the same key returns the original link (200 instead of 201).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateLinkRequest" }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location: { schema: { type: string, format: uri } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LinkResponse" }
+        "200":
+          description: Idempotent replay of an earlier request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LinkResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "429": { description: Rate limit exceeded (60 per minute per client IP) }
+        "503": { $ref: "#/components/responses/Problem" }
+
+  /{code}:
+    get:
+      operationId: redirect
+      summary: Redirect to the target URL
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "302":
+          description: Found. Temporary on purpose so clients keep coming through the service.
+          headers:
+            Location: { schema: { type: string, format: uri } }
+        "404": { description: Unknown or expired code }
+
+  /links/{code}/stats:
+    get:
+      operationId: getStats
+      summary: Click statistics for a link
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatsResponse" }
+        "404": { description: Unknown code }
+
+  /health/live:
+    get:
+      summary: Liveness probe (never touches dependencies)
+      responses:
+        "200": { description: Alive }
+  /health/ready:
+    get:
+      summary: Readiness probe (checks storage when Postgres is configured)
+      responses:
+        "200": { description: Ready }
+        "503": { description: A dependency is unavailable }
+
+components:
+  parameters:
+    Code:
+      in: path
+      name: code
+      required: true
+      schema: { type: string, pattern: "^[0-9A-Za-z]{4,16}$" }
+
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            properties:
+              type: { type: string }
+              title: { type: string }
+              status: { type: integer }
+              detail: { type: string }
+
+  schemas:
+    CreateLinkRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: Absolute http/https URL. Loopback and cloud-metadata hosts are refused.
+        alias:
+          type: string
+          pattern: "^[0-9A-Za-z]{4,16}$"
+          description: Optional custom code; must be unused.
+        ttlSeconds:
+          type: integer
+          minimum: 1
+          description: Optional expiry relative to creation time.
+
+    LinkResponse:
+      type: object
+      properties:
+        code: { type: string }
+        shortUrl: { type: string, format: uri }
+        targetUrl: { type: string, format: uri }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: [string, "null"], format: date-time }
+
+    StatsResponse:
+      type: object
+      properties:
+        code: { type: string }
+        totalClicks: { type: integer, format: int64 }
+        lastClickedAt: { type: [string, "null"], format: date-time }

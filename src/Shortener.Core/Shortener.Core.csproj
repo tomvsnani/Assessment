@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Domain + ports. Deliberately has no package references. -->
+</Project>

@@ -1,0 +1,21 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{yml,yaml,json,md}]
+indent_size = 2
+
+[*.cs]
+dotnet_sort_system_directives_first = true
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_braces = true:warning
+dotnet_diagnostic.CA1848.severity = none   # LoggerMessage delegates: noise for a prototype
+dotnet_diagnostic.CA2007.severity = none   # ConfigureAwait: not needed in ASP.NET Core / console
+dotnet_diagnostic.CA1812.severity = none   # "never instantiated" false positives with DI
+dotnet_diagnostic.CA1707.severity = none   # underscores in test method names
