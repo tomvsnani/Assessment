@@ -3,6 +3,7 @@ using Orchestrator.Cli;
 // sdlc run <scenario> [--live] [--provider anthropic|openai|gemini] [--model id] [--unattended]
 // sdlc graph <scenario>
 // sdlc verify-audit <runs/dir>
+Console.OutputEncoding = System.Text.Encoding.UTF8;
 var options = CliOptions.Parse(args);
 if (options is null)
 {
