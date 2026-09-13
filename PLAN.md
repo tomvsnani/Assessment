@@ -121,18 +121,18 @@ click counting is a synchronous `UPDATE links SET clicks = clicks + 1` on the re
 - [ ] Record in `docs/engineering-summary.md` exactly what was kept, changed and rejected from the agent output
 
 ### Phase 2 — Orchestrator core
-- [ ] Contracts (records only)
-- [ ] Workflow: YAML loader, `DependencyGraph` (topological order, cycle check, parallel groups)
-- [ ] Engine: `Scheduler`, `Executor`, `RetryPolicy` (bounded, jittered), `Saga`, `SafeStop` (cancellation + poison flag)
-- [ ] State: `EventStore`, projections (`RunStatus`, `Lineage`)
-- [ ] Metrics: `ReliabilityMetrics`
-- [ ] Tests: graph ordering, parallel join, retry exhaustion → fallback, rollback order, re-plan on upstream change
+- [x] Contracts (records only)
+- [x] Workflow: YAML loader, `DependencyGraph` (topological order, cycle check, parallel groups)
+- [x] Engine: `Scheduler`, `Executor`, `RetryPolicy` (bounded, jittered), `Saga`, `SafeStop` (cancellation + poison flag)
+- [x] State: `EventStore`, projections (`RunStatus`, `Lineage`)
+- [x] Metrics: `ReliabilityMetrics`
+- [x] Tests: graph ordering, parallel join, retry exhaustion → fallback, rollback order, re-plan on upstream change
 
 ### Phase 3 — Governance
-- [ ] `IPolicy`, the four policies above, `PolicyGate`
-- [ ] `ApprovalGate` with a console approver and a recorded approver
-- [ ] `AuditLog` (structured JSONL: actor, stage, input hash, outcome, timestamp)
-- [ ] Tests: policy blocks stage, approval denied → safe stop, audit completeness
+- [x] `IPolicy`, the four policies above, `PolicyGate`
+- [x] `ApprovalGate` + `IApprover` port (console and recorded approvers arrive with the CLI in Phase 4)
+- [x] `AuditLog` (structured JSONL: actor, stage, input hash, outcome, timestamp)
+- [x] Tests: policy blocks stage, approval denied → safe stop, audit completeness
 
 ### Phase 4 — LLM + agents
 - [ ] `ILlmClient` + three raw-HTTP adapters + `RecordingClient` (record / replay keyed by request hash)
