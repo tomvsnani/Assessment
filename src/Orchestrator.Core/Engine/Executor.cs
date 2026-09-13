@@ -55,7 +55,7 @@ public sealed class Executor(
             }
 
             var attemptCheckpoint = workspace.Checkpoint();
-            var context = new StageContext(events.RunId, stage, requirement, artifacts, [.. decisions, .. newDecisions], workspace, attempt, ct);
+            var context = new StageContext(events.RunId, stage, requirement, artifacts, [.. decisions, .. newDecisions], workspace, attemptCheckpoint, attempt, ct);
             var attemptResult = await TryAttemptAsync(agent, context, attemptCheckpoint);
             if (attemptResult is AttemptOutcome.Cancelled)
             {

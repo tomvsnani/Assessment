@@ -7,7 +7,7 @@ namespace Orchestrator.Core.Workflow;
 /// directed acyclic graph through <see cref="StageDefinition.DependsOn"/>.
 /// </summary>
 /// <param name="Baseline">
-/// What the workspace starts from: <c>empty</c> for greenfield, or <c>git:&lt;ref&gt;</c> to
+/// What the workspace starts from: <c>scaffold</c> (build configuration only) for greenfield, or <c>git:&lt;ref&gt;</c> to
 /// materialise a tagged version of this repository for brownfield work.
 /// </param>
 public sealed record WorkflowDefinition(

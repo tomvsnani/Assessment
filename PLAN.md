@@ -135,15 +135,15 @@ click counting is a synchronous `UPDATE links SET clicks = clicks + 1` on the re
 - [x] Tests: policy blocks stage, approval denied → safe stop, audit completeness
 
 ### Phase 4 — LLM + agents
-- [ ] `ILlmClient` + three raw-HTTP adapters + `RecordingClient` (record / replay keyed by request hash)
-- [ ] Tools sandboxed to `workspace/`
-- [ ] `Codebase/RepoMap` (Roslyn signatures), `ImpactAnalysis`, `ICodebaseIndex`
-- [ ] Eight agents, each: load prompt from `prompts/`, build context, call LLM, parse typed output
-- [ ] Coordinator wired to re-plan when a human edits an approved artifact
-- [ ] Tests: replay round-trip, a prompt file exists for every agent, parser rejects malformed output
+- [x] `ILlmClient` + three raw-HTTP adapters + `RecordingClient` (record / replay keyed by request hash)
+- [x] Tools sandboxed to `workspace/`
+- [x] `Codebase/RepoMap` (Roslyn signatures), `ImpactAnalysis`, `ICodebaseIndex`
+- [x] Nine agents (eight LLM-backed + deterministic `VerifierAgent`), each: load prompt from `prompts/`, build context, call LLM, parse typed output
+- [x] Re-plan wiring: verify/review failure → `rerun_from: implement` with feedback; human `revise` re-runs the stage with notes
+- [x] Tests: replay round-trip, a prompt file exists for every agent, parser rejects malformed output
 
 ### Phase 5 — Scenarios + recordings
-- [ ] `workflows/*.yaml` for greenfield, brownfield, ambiguous
+- [x] `workflows/*.yaml` for greenfield, brownfield, ambiguous
 - [ ] Run each live with interactive approvals; commit recordings; snapshot greenfield output
 - [ ] Replay tests: all three scenarios pass with no key, deterministically
 - [ ] Confirm the recordings contain at least one real retry, one real policy block, one real human rejection

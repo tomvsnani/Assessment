@@ -29,7 +29,7 @@ public static class WorkflowLoader
             dto.Name,
             Enum.Parse<ScenarioKind>(dto.Kind, ignoreCase: true),
             dto.Requirement ?? throw new WorkflowValidationException("Workflow needs a requirement path."),
-            dto.Baseline ?? "empty",
+            dto.Baseline ?? "scaffold",
             dto.MaxParallel is > 0 ? dto.MaxParallel.Value : 4,
             stages);
     }

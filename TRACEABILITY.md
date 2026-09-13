@@ -7,9 +7,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified.
 
 | # | Requirement | Where it lives | Evidence | Status |
 |---|-------------|----------------|----------|--------|
-| A1 | Requirement understanding — interpret intent, find ambiguity, normalize | `Orchestrator.Agents/Agents/RequirementsAgent.cs`, `prompts/requirements.md`, `Contracts/Spec.cs` | `docs/scenarios/ambiguous.md`; recorded spec with ambiguity list | [ ] |
-| A2 | Task decomposition — actionable tasks, dependencies, sequencing | `Agents/PlannerAgent.cs`, `Contracts/WorkItem.cs` (Jira-shaped: key, AC, depends-on, risk) | `recordings/*/plan.json`; `Orchestrator.Tests/PlannerOutputTests.cs` | [ ] |
-| A3 | Codebase reasoning (brownfield) — impacted modules, APIs, data flows | `Orchestrator.Agents/Codebase/RepoMap.cs`, `ImpactAnalysis.cs`, `ICodebaseIndex.cs` | `docs/scenarios/brownfield.md` impact table; `Orchestrator.Tests/ImpactAnalysisTests.cs` | [ ] |
+| A1 | Requirement understanding — interpret intent, find ambiguity, normalize | `Orchestrator.Agents/Agents/RequirementsAgent.cs`, `prompts/requirements.md`, `Contracts/Spec.cs` | `docs/scenarios/ambiguous.md`; recorded spec with ambiguity list | [~] |
+| A2 | Task decomposition — actionable tasks, dependencies, sequencing | `Agents/PlannerAgent.cs`, `Contracts/WorkItem.cs` (Jira-shaped: key, AC, depends-on, risk) | `recordings/*/plan.json`; `Orchestrator.Tests/PlannerOutputTests.cs` | [~] |
+| A3 | Codebase reasoning (brownfield) — impacted modules, APIs, data flows | `Orchestrator.Agents/Codebase/RepoMap.cs`, `ImpactAnalysis.cs`, `ICodebaseIndex.cs` | `docs/scenarios/brownfield.md` impact table; `Orchestrator.Tests/ImpactAnalysisTests.cs` | [~] |
 | A4a | Explicit dependency graph with entry/exit gates | `Orchestrator.Core/Workflow/DependencyGraph.cs`, `Stage.cs`, `Gate.cs`; `workflows/*.yaml` | `Orchestrator.Tests/DependencyGraphTests.cs` | [x] |
 | A4b | Sequential + parallel paths with synchronization | `Orchestrator.Core/Engine/Scheduler.cs` | `SchedulerTests.Given_diamond_workflow_When_run_Then_branches_overlap_and_join_waits_for_both`, `..._max_parallel_one_...` | [x] |
 | A4c | Cross-stage context and decision lineage | `Orchestrator.Core/State/EventStore.cs`, `Projections/Lineage.cs` | `runs/<id>/events.jsonl`; `Lineage` projection + Mermaid render (`EventStoreTests`); walkthroughs in Phase 6 | [~] |
@@ -21,7 +21,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified.
 | A4i | Dynamic re-planning when upstream outputs change | `Engine/Coordinator.cs` | `ReplanTests` (verify-fails→implement re-run with feedback, loop budget, upstream-artifact-changed invalidation) | [x] |
 | A5 | Engineering output — production code, API/schema, tests, docs | `src/Shortener.*`, `docs/openapi.yaml`, `tests/Shortener.*` | `dotnet test` green; CI badge | [~] |
 | A6 | Validation and risk control — risks, trade-offs, failure scenarios, guardrails | `docs/tradeoffs.md`, `docs/engineering-summary.md` §Risks; policies above | walkthroughs each have a "Validation" section | [ ] |
-| A7 | Controlled autonomy — agents execute, humans approve | `ApprovalGate.cs`, `Orchestrator.Cli` interactive approver | recordings show human decisions labelled as recorded | [ ] |
+| A7 | Controlled autonomy — agents execute, humans approve | `ApprovalGate.cs`, `Orchestrator.Cli` interactive approver | recordings show human decisions labelled as recorded | [~] |
 | A8 | Final engineering summary | `docs/engineering-summary.md` | — | [ ] |
 
 ## B. Deliverables (assignment §5)
@@ -60,10 +60,10 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified.
 | D5 | Observability / Splunk | Serilog JSON, correlation id, OpenTelemetry; orchestrator audit log in the same JSONL shape | `Shortener.Api`, `Governance/AuditLog.cs` | [x] |
 | D6 | Twelve-Factor, Docker, CI/CD | Env-only config, Dockerfile, compose profile, GitHub Actions | root files, `.github/workflows/ci.yml` | [x] |
 | D7 | PostgreSQL / caching | Npgsql repository + Redis cache behind ports | `Shortener.Infrastructure/Postgres`, `/Redis` | [x] |
-| D8 | TDD / BDD | Acceptance criteria as Given/When/Then, approved before implementation | `Contracts/Spec.cs`, `prompts/requirements.md` | [ ] |
-| D9 | Spec-driven dev, custom instructions, prompt engineering | Versioned spec artifact; `CLAUDE.md`; one prompt file per agent | `CLAUDE.md`, `prompts/` | [ ] |
-| D10 | Jira / Confluence | Ticket-shaped work items; Confluence-shaped docs (ADR, runbook, environment) | `Contracts/WorkItem.cs`, `docs/runbook.md` | [ ] |
-| D11 | Change control / production readiness | Release stage emits change record: risk rating, blast radius, backout plan | `Agents/ReleaseManagerAgent.cs`, `docs/runbook.md` | [ ] |
+| D8 | TDD / BDD | Acceptance criteria as Given/When/Then, approved before implementation | `Contracts/Spec.cs`, `prompts/requirements.md` | [~] |
+| D9 | Spec-driven dev, custom instructions, prompt engineering | Versioned spec artifact; `CLAUDE.md`; one prompt file per agent | `CLAUDE.md`, `prompts/` | [~] |
+| D10 | Jira / Confluence | Ticket-shaped work items; Confluence-shaped docs (ADR, runbook, environment) | `Contracts/WorkItem.cs`, `docs/runbook.md` | [~] |
+| D11 | Change control / production readiness | Release stage emits change record: risk rating, blast radius, backout plan | `Agents/ReleaseManagerAgent.cs`, `docs/runbook.md` | [~] |
 | D12 | Modernization (legacy → event-driven) | Brownfield scenario is exactly this migration | `docs/scenarios/brownfield.md` | [ ] |
 | D13 | Responsible AI-assisted delivery, ownership of correctness | Engineering summary documents what AI produced and what was rejected | `docs/engineering-summary.md` | [ ] |
 
@@ -75,5 +75,6 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified.
 | 2026-09-13 | `PLAN.md` written — decisions, layout, orchestration model, phases | Awaiting confirmation of D1 (language) and the LLM provider for recordings |
 | 2026-09-13 | `TRACEABILITY.md` written — this matrix | All implementation rows `[ ]` |
 | 2026-09-13 | Phase 0 bootstrap: solution, `Directory.Build.props` (warnings-as-errors, analyzers, central packages), `CLAUDE.md`, CI, compose | D6 |
+| 2026-09-13 | Phase 4 LLM + agents: provider-agnostic `ILlmClient` with raw-HTTP Anthropic/OpenAI/Gemini adapters, `RecordingClient` (record/replay by request hash, sequence fallback reported), sandboxed `FileWorkspace` + tools (read/write/list/grep/build/test), Roslyn `RepoMap` + deterministic `ImpactAnalysis` behind `ICodebaseIndex`, nine agents with prompts in `prompts/`, CLI (`sdlc run|graph|verify-audit`) with console/recording/replay approvers, three workflow YAMLs, three requirement files. 76 orchestrator tests green. Baseline materialisation from `git:v1-legacy` verified (workspace builds, 49 tests pass) | A1–A3, A7, D8–D11 scaffolding |
 | 2026-09-13 | Phase 2+3 orchestrator core: contracts, YAML workflow + `DependencyGraph`, `Scheduler` (bounded parallel, joins), `Executor` (gates, bounded retry w/ jitter, fallback agent, human revisions), `Coordinator` (rerun-from loops, upstream-change invalidation), `Saga` rollback, `SafeStop`, event-sourced `EventStore` + `RunStatus`/`Lineage` projections, `ReliabilityMetrics`, 4 policies, `ApprovalGate`, hash-chained `AuditLog`. 58 tests green | A4a–A4i |
 | 2026-09-13 | Phase 1 shortener v1: Core (7 files), Infrastructure (InMemory / Postgres+Dapper+Polly / Redis), Api (minimal API, Serilog JSON, OTel, correlation id, rate limit, health probes), 39 unit + 10 integration tests green, 4 Postgres Testcontainers tests written (need Docker running), load tool, `openapi.yaml`. Tagged `v1-legacy` | A5 partial, D1, D3–D7 |

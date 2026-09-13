@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Everything that talks to an LLM, the file system or the repository under development. -->
+  <ItemGroup>
+    <ProjectReference Include="../Orchestrator.Core/Orchestrator.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Orchestrator.Tests" />
+  </ItemGroup>
+</Project>
