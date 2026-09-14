@@ -65,10 +65,21 @@ public sealed class EventStore : IDisposable
     }
 
     public static IReadOnlyList<RunEvent> ReadFile(string path) =>
-        File.ReadLines(path)
+        ReadSharedLines(path)
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(line => JsonSerializer.Deserialize<RunEvent>(line, JsonOptions)!)
             .ToList();
+
+    /// <summary>Reads a log that another process (or this one) may still be appending to.</summary>
+    public static IEnumerable<string> ReadSharedLines(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream);
+        while (reader.ReadLine() is { } line)
+        {
+            yield return line;
+        }
+    }
 
     public void Dispose() => _writer?.Dispose();
 }

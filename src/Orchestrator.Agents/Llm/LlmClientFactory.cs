@@ -8,13 +8,28 @@ public static class LlmClientFactory
 {
     public static readonly string[] Providers = ["anthropic", "openai", "gemini"];
 
+    public static string KeyVariable(string provider) => provider.ToUpperInvariant() + "_API_KEY";
+
+    public static bool HasKey(string provider) => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(KeyVariable(provider)));
+
+    /// <summary>LLM_PROVIDER if set, else the first provider with a key in the environment, else anthropic.</summary>
+    public static string DefaultProvider() =>
+        Environment.GetEnvironmentVariable("LLM_PROVIDER") ?? Providers.FirstOrDefault(HasKey) ?? "anthropic";
+
+    public static string DefaultModel(string provider) => provider switch
+    {
+        "anthropic" => AnthropicClient.DefaultModel,
+        "openai" => OpenAiClient.DefaultModel,
+        "gemini" => GeminiClient.DefaultModel,
+        _ => throw new ArgumentException($"Unknown provider '{provider}'.", nameof(provider)),
+    };
+
     public static ILlmClient Create(string provider, string? model, HttpClient http)
     {
-        var envVar = provider.ToUpperInvariant() + "_API_KEY";
-        var key = Environment.GetEnvironmentVariable(envVar);
+        var key = Environment.GetEnvironmentVariable(KeyVariable(provider));
         if (string.IsNullOrWhiteSpace(key))
         {
-            throw new InvalidOperationException($"Live mode needs {envVar} in the environment (provider '{provider}').");
+            throw new InvalidOperationException($"Live mode needs {KeyVariable(provider)} in the environment (provider '{provider}'). Keys present for: {string.Join(", ", Providers.Where(HasKey).DefaultIfEmpty("none"))}.");
         }
 
         http.Timeout = TimeSpan.FromMinutes(10);

@@ -8,7 +8,8 @@ namespace Orchestrator.Agents.Llm;
 /// <summary>Raw HTTP adapter for the Gemini generateContent API with function declarations.</summary>
 public sealed class GeminiClient(HttpClient http, string apiKey, string model = GeminiClient.DefaultModel) : ILlmClient
 {
-    public const string DefaultModel = "gemini-2.5-pro";
+    /// <summary>The Flash tier has the widest free quota; Pro models are quota-blocked on free keys.</summary>
+    public const string DefaultModel = "gemini-2.5-flash";
 
     public string Provider => "gemini";
 

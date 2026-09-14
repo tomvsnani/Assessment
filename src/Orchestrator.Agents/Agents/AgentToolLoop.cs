@@ -43,7 +43,7 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
         {
             ct.ThrowIfCancellationRequested();
             trace.ModelCallStarted(stageId, label, iteration, messages.Count);
-            var response = await CompleteWithRetryAsync(new LlmRequest(systemPrompt, [.. messages], definitions), ct);
+            var response = await CompleteWithRetryAsync(stageId, label, new LlmRequest(systemPrompt, [.. messages], definitions), ct);
             inputTokens += response.InputTokens;
             outputTokens += response.OutputTokens;
             messages.Add(response.Turn);
@@ -67,7 +67,7 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
         log($"{label}: iteration limit ({maxIterations}) reached; asking for the final answer");
         messages.Add(new LlmMessage.UserText("You have used your tool budget. Stop using tools and produce your final answer now."));
         trace.ModelCallStarted(stageId, label, maxIterations + 1, messages.Count);
-        var last = await CompleteWithRetryAsync(new LlmRequest(systemPrompt, [.. messages], []), ct);
+        var last = await CompleteWithRetryAsync(stageId, label, new LlmRequest(systemPrompt, [.. messages], []), ct);
         trace.AgentTurn(stageId, label, maxIterations + 1, last.Turn.Text, 0, last.InputTokens, last.OutputTokens);
         return new Outcome(last.Turn.Text, maxIterations + 1, toolCalls, inputTokens + last.InputTokens, outputTokens + last.OutputTokens, true);
     }
@@ -110,7 +110,7 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
     /// </summary>
     private const int MaxProviderAttempts = 8;
 
-    private async Task<LlmResponse> CompleteWithRetryAsync(LlmRequest request, CancellationToken ct)
+    private async Task<LlmResponse> CompleteWithRetryAsync(string stageId, string label, LlmRequest request, CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -121,12 +121,15 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
             catch (LlmException e) when (e.IsTransient && attempt < MaxProviderAttempts)
             {
                 var delay = e.RetryAfter is { } hinted ? hinted + TimeSpan.FromSeconds(1) : TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, attempt) * 2));
+                trace.ProviderRetry(stageId, label, e.Status, attempt, MaxProviderAttempts, delay, e.Message);
                 log($"  provider {e.Status}; retrying in {delay.TotalSeconds.ToString("0", CultureInfo.InvariantCulture)}s (attempt {attempt}/{MaxProviderAttempts})");
                 await Task.Delay(delay, ct);
             }
-            catch (HttpRequestException) when (attempt < MaxProviderAttempts)
+            catch (HttpRequestException e) when (attempt < MaxProviderAttempts)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, attempt) * 2)), ct);
+                var delay = TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, attempt) * 2));
+                trace.ProviderRetry(stageId, label, 0, attempt, MaxProviderAttempts, delay, e.Message);
+                await Task.Delay(delay, ct);
             }
         }
     }

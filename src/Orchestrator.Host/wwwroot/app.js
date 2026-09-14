@@ -5,6 +5,7 @@
   const api = {
     scenarios: () => fetch('/api/scenarios').then(r => r.json()),
     baselines: () => fetch('/api/baselines').then(r => r.json()),
+    providers: () => fetch('/api/providers').then(r => r.json()),
     workflow: (name) => fetch(`/api/workflows/${name}/graph`).then(r => r.json()),
     runs: () => fetch('/api/runs').then(r => r.json()),
     run: (id) => fetch(`/api/runs/${id}`).then(r => r.ok ? r.json() : null),
@@ -121,6 +122,7 @@
     switch (e.kind) {
       case 'StageStarted': a[e.stageId] = { agent: d.agent, what: 'starting', since: e.at, kind: 'busy' }; break;
       case 'ModelCallStarted': a[e.stageId] = { agent: d.agent, what: `calling the model — turn ${d.iteration} (${d.messages} messages in context)`, since: e.at, kind: 'busy' }; break;
+      case 'ProviderRetry': a[e.stageId] = { agent: d.agent, what: `provider ${d.status === '429' ? 'rate-limited (429)' : 'error ' + d.status}; waiting ${Math.round(d.delayMs / 1000)}s before attempt ${+d.attempt + 1}/${d.maxAttempts}`, since: e.at, kind: 'retry' }; break;
       case 'AgentTurn': a[e.stageId] = { agent: d.agent, what: d.toolCalls > 0 ? `model asked for ${d.toolCalls} tool call(s)` : 'model answered; parsing the artifact', since: e.at, kind: 'busy' }; break;
       case 'ToolStarted': a[e.stageId] = { agent: d.agent, what: `running ${d.tool} ${d.arguments.length > 90 ? d.arguments.slice(0, 90) + '…' : d.arguments}`, since: e.at, kind: 'busy' }; break;
       case 'ToolInvoked': a[e.stageId] = { agent: d.agent, what: `${d.tool} finished (${d.durationMs} ms); back to the model`, since: e.at, kind: 'busy' }; break;
@@ -141,7 +143,7 @@
     if (!rows.length) { body.innerHTML = state.summary?.status === 'running' ? '<span class="spinner"></span>scheduler is dispatching the next stage…' : 'Nothing running.'; return; }
     body.innerHTML = rows.map(([stage, a]) => `<div class="now-row ${a.kind === 'human' ? 'waiting-human' : ''}" data-since="${a.since}">
       <span class="stage-tag mono">${esc(stage)}</span><span class="agent-tag">${esc(a.agent)}</span>
-      <span class="what">${a.kind === 'human' ? '👤 ' : '<span class="spinner"></span>'}${esc(a.what)}</span><span class="elapsed">0s</span></div>`).join('');
+      <span class="what">${a.kind === 'human' ? '👤 ' : a.kind === 'retry' ? '⏳ ' : '<span class="spinner"></span>'}${esc(a.what)}</span><span class="elapsed">0s</span></div>`).join('');
   }
 
   setInterval(() => {
@@ -203,7 +205,7 @@
   }
 
   function appendTimeline(e) {
-    const isTrace = e.kind === 'AgentTurn' || e.kind === 'ToolInvoked' || e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted';
+    const isTrace = e.kind === 'AgentTurn' || e.kind === 'ToolInvoked' || e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted' || e.kind === 'ProviderRetry';
     if (e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted') return; // shown in the "Right now" panel instead
     if (isTrace && !$('showTrace').checked) return;
     if (e.kind === 'PolicyEvaluated' && e.data.verdict === 'Pass' && !$('showPolicyPass').checked) return;
@@ -229,6 +231,7 @@
       case 'RunCompleted': icon = '🏁'; cls = 'k-ok'; text = 'run completed'; break;
       case 'RunFailed': icon = '🏁'; cls = 'k-fail'; text = `run failed: ${esc(d.reason)}`; break;
       case 'AgentTurn': icon = '🤖'; text = `<span class="agent-tag">${esc(d.agent)}</span> turn ${d.iteration}: ${d.toolCalls > 0 ? `asked for ${d.toolCalls} tool call(s)` : 'final answer'} <span class="muted small">(${d.inputTokens}+${d.outputTokens} tok)</span>` + (d.text ? ` <details><summary class="muted small">text</summary><pre>${esc(d.text)}</pre></details>` : ''); break;
+      case 'ProviderRetry': icon = '⏳'; cls = 'k-warn'; text = `<span class="agent-tag">${esc(d.agent)}</span> provider returned ${d.status}; retry ${+d.attempt + 1}/${d.maxAttempts} in ${Math.round(d.delayMs / 1000)}s <details><summary class="muted small">detail</summary><pre>${esc(d.detail)}</pre></details>`; break;
       case 'ToolInvoked': icon = '🔧'; cls = d.isError === 'true' ? 'k-fail' : ''; text = `<span class="agent-tag">${esc(d.agent)}</span> ${esc(d.tool)} <span class="mono muted small">${esc(d.arguments.length > 160 ? d.arguments.slice(0, 160) + '…' : d.arguments)}</span> <span class="muted small">${d.durationMs} ms</span> <details><summary class="muted small">result</summary><pre>${esc(d.result)}</pre></details>`; break;
       default: text = e.kind;
     }
@@ -348,9 +351,10 @@
     const presetName = $('preset').value;
     const p = state.presets.find(x => x.name === presetName);
     const unchanged = p && $('reqText').value.trim() === p.requirement.text.trim() && $('baseline').value === p.baseline;
+    const llm = { provider: $('provider').value || null, model: $('model').value.trim() || null };
     const body = unchanged
-      ? { scenario: presetName, live: $('live').checked, approver: $('approver').value }
-      : { requirement: { title: $('reqTitle').value, text: $('reqText').value }, baseline: $('baseline').value, live: true, approver: $('approver').value === 'replay' ? 'web' : $('approver').value };
+      ? { scenario: presetName, live: $('live').checked, approver: $('approver').value, ...llm }
+      : { requirement: { title: $('reqTitle').value, text: $('reqText').value }, baseline: $('baseline').value, live: true, approver: $('approver').value === 'replay' ? 'web' : $('approver').value, ...llm };
     if (!unchanged && !$('reqText').value.trim()) { banner('Write a requirement first.', true); return; }
     const r = await api.start(body);
     if (!r.ok) { banner(r.body.error || 'could not start', true); return; }
@@ -370,8 +374,12 @@
 
   // ---------- boot ----------
   (async () => {
-    const [presets, baselines] = await Promise.all([api.scenarios(), api.baselines()]);
+    const [presets, baselines, providers] = await Promise.all([api.scenarios(), api.baselines(), api.providers()]);
     state.presets = presets;
+    $('provider').innerHTML = providers.providers.map(p => `<option value="${esc(p.id)}" ${p.hasKey ? '' : 'disabled'}>${esc(p.id)} ${p.hasKey ? '(key present)' : '(no ' + esc(p.keyVariable) + ')'}</option>`).join('');
+    $('provider').value = providers.default;
+    $('provider').addEventListener('change', () => { const p = providers.providers.find(x => x.id === $('provider').value); $('model').placeholder = p ? p.defaultModel : 'provider default'; });
+    $('provider').dispatchEvent(new Event('change'));
     $('preset').innerHTML = '<option value="">— write your own —</option>' + presets.map(p => `<option value="${esc(p.name)}">${esc(p.name)}${p.hasRecording ? ' (recorded)' : ''}</option>`).join('');
     $('baseline').innerHTML = baselines.map(b => `<option value="${esc(b.id)}">${esc(b.id)} — ${esc(b.description)}</option>`).join('');
     if (!localStorage.getItem('actor')) localStorage.setItem('actor', 'dashboard-user');

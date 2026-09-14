@@ -39,6 +39,7 @@ public enum EventKind
 
     // Agent-level trace: what a role is doing, said, and which tools it used. Not audited; shown on the dashboard.
     ModelCallStarted,
+    ProviderRetry,
     AgentTurn,
     ToolStarted,
     ToolInvoked,

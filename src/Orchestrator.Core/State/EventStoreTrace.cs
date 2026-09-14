@@ -18,6 +18,15 @@ public sealed class EventStoreTrace(EventStore events) : IRunTrace
     public void ToolStarted(string stageId, string agent, string tool, string arguments) =>
         events.Append(EventKind.ToolStarted, stageId, ("agent", agent), ("tool", tool), ("arguments", Clip(arguments)));
 
+    public void ProviderRetry(string stageId, string agent, int status, int attempt, int maxAttempts, TimeSpan delay, string detail) =>
+        events.Append(EventKind.ProviderRetry, stageId,
+            ("agent", agent),
+            ("status", status.ToString(CultureInfo.InvariantCulture)),
+            ("attempt", attempt.ToString(CultureInfo.InvariantCulture)),
+            ("maxAttempts", maxAttempts.ToString(CultureInfo.InvariantCulture)),
+            ("delayMs", delay.TotalMilliseconds.ToString("0", CultureInfo.InvariantCulture)),
+            ("detail", Clip(detail)));
+
     public void AgentTurn(string stageId, string agent, int iteration, string text, int toolCalls, int inputTokens, int outputTokens) =>
         events.Append(EventKind.AgentTurn, stageId,
             ("agent", agent),

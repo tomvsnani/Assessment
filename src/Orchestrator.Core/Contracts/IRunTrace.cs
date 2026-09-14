@@ -10,6 +10,9 @@ public interface IRunTrace
     /// <summary>A request is on its way to the model; the dashboard shows "thinking…" until the matching turn arrives.</summary>
     void ModelCallStarted(string stageId, string agent, int iteration, int messagesInContext);
 
+    /// <summary>The provider refused (rate limit / outage) and the loop is waiting before trying again.</summary>
+    void ProviderRetry(string stageId, string agent, int status, int attempt, int maxAttempts, TimeSpan delay, string detail);
+
     void AgentTurn(string stageId, string agent, int iteration, string text, int toolCalls, int inputTokens, int outputTokens);
 
     /// <summary>A tool is about to run (builds and tests take a while).</summary>

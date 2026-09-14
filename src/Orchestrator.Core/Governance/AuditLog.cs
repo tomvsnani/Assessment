@@ -91,7 +91,7 @@ public sealed class AuditLog : IDisposable
     }
 
     public static IReadOnlyList<AuditEntry> ReadFile(string path) =>
-        File.ReadLines(path).Where(l => !string.IsNullOrWhiteSpace(l))
+        EventStore.ReadSharedLines(path).Where(l => !string.IsNullOrWhiteSpace(l))
             .Select(l => JsonSerializer.Deserialize<AuditEntry>(l, JsonOptions)!).ToList();
 
     public void Dispose()

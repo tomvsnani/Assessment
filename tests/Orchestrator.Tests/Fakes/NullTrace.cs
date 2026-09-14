@@ -8,6 +8,10 @@ public sealed class NullTrace : IRunTrace
     {
     }
 
+    public void ProviderRetry(string stageId, string agent, int status, int attempt, int maxAttempts, TimeSpan delay, string detail)
+    {
+    }
+
     public void ToolStarted(string stageId, string agent, string tool, string arguments)
     {
     }

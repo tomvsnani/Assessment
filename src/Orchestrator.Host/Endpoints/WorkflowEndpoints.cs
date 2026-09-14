@@ -22,6 +22,19 @@ public static class WorkflowEndpoints
 
         app.MapGet("/api/baselines", (RepositoryPaths paths) => Results.Ok(Baselines(paths)));
 
+        // Which providers have a key in this process's environment. Keys themselves are never returned.
+        app.MapGet("/api/providers", () => Results.Ok(new
+        {
+            Default = Agents.Llm.LlmClientFactory.DefaultProvider(),
+            Providers = Agents.Llm.LlmClientFactory.Providers.Select(p => new
+            {
+                Id = p,
+                HasKey = Agents.Llm.LlmClientFactory.HasKey(p),
+                DefaultModel = Agents.Llm.LlmClientFactory.DefaultModel(p),
+                KeyVariable = Agents.Llm.LlmClientFactory.KeyVariable(p),
+            }),
+        }));
+
         app.MapGet("/api/workflows", (RepositoryPaths paths) =>
             Results.Ok(Directory.GetFiles(paths.Workflows, "*.yaml").Select(f => Path.GetFileNameWithoutExtension(f)).Order(StringComparer.Ordinal)));
 
