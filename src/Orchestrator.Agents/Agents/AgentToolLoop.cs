@@ -38,6 +38,7 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
         var inputTokens = 0;
         var outputTokens = 0;
         var toolCalls = 0;
+        var continued = new System.Text.StringBuilder(); // text of answers cut off by the output limit, so far
 
         for (var iteration = 1; iteration <= maxIterations; iteration++)
         {
@@ -49,9 +50,18 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
             messages.Add(response.Turn);
             trace.AgentTurn(stageId, label, iteration, response.Turn.Text, response.Turn.ToolCalls.Count, response.InputTokens, response.OutputTokens);
 
+            if (response.StopReason == "max_tokens" && !response.WantsTools)
+            {
+                // Output limit hit mid-answer: ask for the rest and stitch the pieces together.
+                continued.Append(response.Turn.Text);
+                log($"{label}: answer cut off by the output limit; asking it to continue");
+                messages.Add(new LlmMessage.UserText("Your previous message was cut off by the output limit. Continue exactly where you stopped, without repeating anything you already wrote."));
+                continue;
+            }
+
             if (!response.WantsTools)
             {
-                return new Outcome(response.Turn.Text, iteration, toolCalls, inputTokens, outputTokens, false);
+                return new Outcome(continued.Append(response.Turn.Text).ToString(), iteration, toolCalls, inputTokens, outputTokens, false);
             }
 
             var results = new List<ToolResult>();

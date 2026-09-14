@@ -82,3 +82,37 @@ public class AgentLoopAndParsingTests
         act.Should().Throw<AgentOutputException>().WithMessage("*<artifact name=\"design\">*");
     }
 }
+
+public class TruncatedAnswerTests
+{
+    private sealed class TruncatingClient : Orchestrator.Agents.Llm.ILlmClient
+    {
+        private int _calls;
+        public List<Orchestrator.Agents.Llm.LlmRequest> Requests { get; } = [];
+        public string Provider => "fake";
+        public string Model => "fake";
+
+        public Task<Orchestrator.Agents.Llm.LlmResponse> CompleteAsync(Orchestrator.Agents.Llm.LlmRequest request, CancellationToken ct)
+        {
+            Requests.Add(request);
+            var first = _calls++ == 0;
+            var turn = FakeLlmClient.Text(first ? "<artifact name=\"design\">part one, " : "part two</artifact>");
+            return Task.FromResult(new Orchestrator.Agents.Llm.LlmResponse(turn, first ? "max_tokens" : "end_turn", 5, 5));
+        }
+    }
+
+    [Fact]
+    public async Task Given_answer_cut_off_by_output_limit_When_loop_runs_Then_it_asks_to_continue_and_stitches_the_text()
+    {
+        var client = new TruncatingClient();
+        var loop = new AgentToolLoop(client, new NullTrace(), _ => { });
+
+        var outcome = await loop.RunAsync("design", "architect", "sys", "user", [], CancellationToken.None);
+
+        outcome.FinalText.Should().Be("<artifact name=\"design\">part one, part two</artifact>");
+        client.Requests.Should().HaveCount(2);
+        client.Requests[1].Messages[^1].Should().BeOfType<Orchestrator.Agents.Llm.LlmMessage.UserText>()
+            .Which.Text.Should().Contain("cut off");
+        ArtifactParser.Extract(outcome.FinalText)["design"].Should().Be("part one, part two");
+    }
+}

@@ -27,7 +27,9 @@ public sealed class GeminiClient(HttpClient http, string apiKey, string model = 
         {
             ["systemInstruction"] = new JsonObject { ["parts"] = new JsonArray(new JsonObject { ["text"] = request.System }) },
             ["contents"] = contents,
-            ["generationConfig"] = new JsonObject { ["maxOutputTokens"] = request.MaxTokens },
+            // Gemini 2.5+ counts thinking tokens against this limit, so a 16k cap truncates long answers;
+            // the model ceiling (64k) is the safe value and the loop handles MAX_TOKENS anyway.
+            ["generationConfig"] = new JsonObject { ["maxOutputTokens"] = Math.Max(request.MaxTokens, 65536) },
         };
         if (request.Tools.Count > 0)
         {
@@ -119,9 +121,10 @@ public sealed class GeminiClient(HttpClient http, string apiKey, string model = 
         }
 
         var usage = root.GetProperty("usageMetadata");
+        var finish = candidate.TryGetProperty("finishReason", out var fr) ? fr.GetString() : null;
         return new LlmResponse(
             new LlmMessage.AssistantTurn(content.Clone(), text, calls),
-            calls.Count > 0 ? "tool_use" : "end_turn",
+            calls.Count > 0 ? "tool_use" : finish == "MAX_TOKENS" ? "max_tokens" : "end_turn",
             usage.TryGetProperty("promptTokenCount", out var i) ? i.GetInt32() : 0,
             usage.TryGetProperty("candidatesTokenCount", out var o) ? o.GetInt32() : 0);
     }

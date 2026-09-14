@@ -99,7 +99,7 @@ public sealed class OpenAiClient(HttpClient http, string apiKey, string model = 
         var finish = choice.GetProperty("finish_reason").GetString() ?? "stop";
         return new LlmResponse(
             new LlmMessage.AssistantTurn(assistant.Clone(), text, calls),
-            finish == "tool_calls" ? "tool_use" : "end_turn",
+            finish == "tool_calls" ? "tool_use" : finish == "length" ? "max_tokens" : "end_turn",
             usage.GetProperty("prompt_tokens").GetInt32(),
             usage.GetProperty("completion_tokens").GetInt32());
     }
