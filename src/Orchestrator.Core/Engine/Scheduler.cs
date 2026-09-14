@@ -53,9 +53,24 @@ public sealed class Scheduler(
             }
 
             var finished = await Task.WhenAny(inFlight.Keys);
+            var stageId = inFlight[finished];
             inFlight.Remove(finished);
             var before = state.ArtifactSnapshot();
-            var execution = await finished;
+            StageExecution execution;
+            try
+            {
+                execution = await finished;
+            }
+            catch (OperationCanceledException)
+            {
+                execution = new StageExecution.Stopped(stageId);
+            }
+            catch (Exception e)
+            {
+                // An executor bug must be reported as a stage failure, never as a crashed run.
+                events.Append(EventKind.StageFailed, stageId, ("reason", $"executor error: {e.GetType().Name}: {e.Message}"));
+                execution = new StageExecution.Failed(stageId, $"executor error: {e.GetType().Name}: {e.Message}", []);
+            }
 
             switch (execution)
             {

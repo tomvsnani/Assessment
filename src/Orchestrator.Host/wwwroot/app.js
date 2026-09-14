@@ -77,7 +77,7 @@
     const picker = $('runPicker');
     const current = picker.value;
     picker.innerHTML = '<option value="">— select —</option>' + runs.map(r =>
-      `<option value="${esc(r.id)}">${esc(r.id)}${r.title ? ' · ' + esc(r.title) : ''} · ${r.status}${r.mode ? ' · ' + r.mode : ''}</option>`).join('');
+      `<option value="${esc(r.id)}">${r.status === 'running' ? '▶ ' : r.status === 'succeeded' ? '✔ ' : '✖ '}${esc(r.id)}${r.title ? ' · ' + esc(r.title) : ''}${r.mode ? ' · ' + r.mode : ''}</option>`).join('');
     picker.value = state.runId || current || '';
     updateReplayButton();
   }
@@ -298,7 +298,7 @@
   }
   function updateReplayButton() {
     const r = state.runs.find(x => x.id === state.runId);
-    $('replayRun').disabled = !(r && r.status === 'finished' && r.replayable);
+    $('replayRun').disabled = !(r && r.status !== 'running' && r.replayable);
   }
   $('newRun').addEventListener('click', openComposer);
   $('cancelCompose').addEventListener('click', () => { $('composer').hidden = true; });

@@ -33,7 +33,25 @@ public sealed class Executor(
         CancellationToken ct)
     {
         events.Append(EventKind.StageStarted, stage.Id, ("agent", stage.Agent));
+        try
+        {
+            return await RunStageAsync(stage, requirement, upstream, decisions, workspace, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Safe stop while an agent, a gate or a human approval was in flight.
+            return new StageExecution.Stopped(stage.Id);
+        }
+    }
 
+    private async Task<StageExecution> RunStageAsync(
+        StageDefinition stage,
+        Requirement requirement,
+        IReadOnlyDictionary<string, Artifact> upstream,
+        IReadOnlyList<Decision> decisions,
+        IWorkspace workspace,
+        CancellationToken ct)
+    {
         var entry = CheckEntryGate(stage, upstream, decisions);
         if (!entry.Open)
         {
@@ -225,8 +243,8 @@ public sealed class Executor(
     private static List<Ambiguity> OpenAmbiguities(IReadOnlyList<Artifact> artifacts)
     {
         var spec = artifacts.FirstOrDefault(a => a.Kind == ArtifactKind.Spec);
-        return spec is not null && ArtifactJson.TryDeserialize<Spec>(spec.Content, out var parsed)
-            ? parsed!.Ambiguities.Where(a => a.ResolvedOptionId is null).ToList()
+        return spec is not null && ArtifactJson.TryDeserialize<Spec>(spec.Content, out var parsed) && parsed?.Ambiguities is { } ambiguities
+            ? ambiguities.Where(a => a.ResolvedOptionId is null).ToList()
             : [];
     }
 

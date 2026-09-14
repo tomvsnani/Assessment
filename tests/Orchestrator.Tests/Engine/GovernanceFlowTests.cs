@@ -134,3 +134,51 @@ public class GovernanceFlowTests
         run.EventsOfKind(EventKind.ApprovalRequested).Should().BeEmpty();
     }
 }
+
+public class SafeStopDuringApprovalTests
+{
+    private const string Gated = """
+        name: gated
+        stages:
+          - id: requirements
+            agent: requirements
+            exit: { artifacts: [spec], approval: approve-spec }
+          - id: implement
+            agent: implementer
+            depends_on: [requirements]
+        """;
+
+    /// <summary>Blocks like a human who has not answered yet; honours cancellation like the web approver does.</summary>
+    private sealed class WaitingApprover : Orchestrator.Core.Governance.IApprover
+    {
+        public TaskCompletionSource Asked { get; } = new();
+
+        public async Task<Orchestrator.Core.Governance.ApprovalDecision> DecideAsync(Orchestrator.Core.Governance.ApprovalRequest request, CancellationToken ct)
+        {
+            Asked.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("unreachable");
+        }
+    }
+
+    [Fact]
+    public async Task Given_approval_pending_When_safe_stop_triggered_Then_run_ends_cleanly_with_rollback_and_no_exception()
+    {
+        var approver = new WaitingApprover();
+        var agents = new FakeAgents()
+            .Producing("requirements", "spec", ArtifactKind.Spec, "{}") // an empty spec must not break the gate
+            .Producing("implementer", "implementation");
+        using var run = new TestRun(Gated, agents, approver);
+
+        var running = run.RunAsync();
+        await approver.Asked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        run.SafeStop.Trigger("operator stopped the run from the dashboard");
+        var outcome = await running;
+
+        outcome.Succeeded.Should().BeFalse();
+        outcome.Summary.Should().Contain("dashboard");
+        run.EventsOfKind(EventKind.RunFailed).Should().ContainSingle();
+        run.EventsOfKind(EventKind.RollbackCompleted).Should().ContainSingle();
+        run.EventsOfKind(EventKind.StageCompleted).Should().BeEmpty();
+    }
+}
