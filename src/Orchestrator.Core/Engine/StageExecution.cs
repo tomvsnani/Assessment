@@ -8,7 +8,8 @@ public abstract record StageExecution(string StageId)
     public sealed record Completed(string StageId, IReadOnlyList<Artifact> Artifacts, IReadOnlyList<Decision> Decisions) : StageExecution(StageId);
 
     /// <summary>Retries, fallback and revisions are exhausted (or were not allowed).</summary>
-    public sealed record Failed(string StageId, string Reason, IReadOnlyList<Artifact> Artifacts) : StageExecution(StageId);
+    /// <param name="MayReplan">False when the last failure was a malformed output rather than a verdict; the coordinator then does not loop back.</param>
+    public sealed record Failed(string StageId, string Reason, IReadOnlyList<Artifact> Artifacts, bool MayReplan = true) : StageExecution(StageId);
 
     /// <summary>A human said no. The run stops; nothing downstream may proceed.</summary>
     public sealed record Rejected(string StageId, string Rationale) : StageExecution(StageId);

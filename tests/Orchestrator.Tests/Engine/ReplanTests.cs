@@ -115,3 +115,63 @@ public class ReplanTests
         events.All.Single(e => e.Kind == EventKind.ReplanTriggered)["cause"].Should().Contain("spec");
     }
 }
+
+public class ReplanFeedbackTests
+{
+    private const string Loop = """
+        name: loop
+        stages:
+          - { id: implement, agent: implementer, exit: { artifacts: [implementation] } }
+          - { id: verify, agent: verifier, depends_on: [implement], on_failure: { rerun_from: implement, max_loops: 2 } }
+          - { id: review, agent: reviewer, depends_on: [verify], retry: { max_attempts: 1 }, on_failure: { rerun_from: implement, max_loops: 1 } }
+        """;
+
+    private static Artifact Feedback(StageContext ctx, string text) => new("feedback", ArtifactKind.Feedback, text, ctx.Stage.Id, []);
+
+    [Fact]
+    public async Task Given_review_findings_then_a_verify_failure_When_implement_reruns_Then_it_sees_both_pieces_of_feedback()
+    {
+        var seen = new List<string?>();
+        var implementRuns = 0;
+        var agents = new FakeAgents()
+            .Add("implementer", ctx =>
+            {
+                implementRuns++;
+                seen.Add(ctx.Artifacts.GetValueOrDefault(Executor.FeedbackArtifact)?.Content);
+                return Task.FromResult(StageResult.Success(new Artifact("implementation", ArtifactKind.Code, $"v{implementRuns}", ctx.Stage.Id, [])));
+            })
+            .Add("verifier", ctx => Task.FromResult(ctx.Require("implementation").Content == "v2"
+                ? StageResult.Failure("build failed", Feedback(ctx, "error CS0103: name does not exist"))
+                : StageResult.Success()))
+            .Add("reviewer", ctx => Task.FromResult(ctx.Require("implementation").Content == "v1"
+                ? StageResult.Failure("reviewer requested changes", Feedback(ctx, "Blocking: race condition in IncrementUsageCount"))
+                : StageResult.Success(new Artifact("review", ArtifactKind.Review, "VERDICT: APPROVE", ctx.Stage.Id, []))));
+        using var run = new TestRun(Loop, agents);
+
+        var outcome = await run.RunAsync();
+
+        outcome.Succeeded.Should().BeTrue();
+        seen.Should().HaveCount(3);
+        seen[1].Should().Contain("race condition");
+        seen[2].Should().Contain("race condition", "the reviewer's findings must survive the later build failure")
+            .And.Contain("CS0103");
+    }
+
+    [Fact]
+    public async Task Given_reviewer_output_is_malformed_When_retries_exhausted_Then_run_fails_without_looping_back_to_implement()
+    {
+        var implementRuns = 0;
+        var agents = new FakeAgents()
+            .Add("implementer", ctx => { implementRuns++; return Task.FromResult(StageResult.Success(new Artifact("implementation", ArtifactKind.Code, "v", ctx.Stage.Id, []))); })
+            .Add("verifier", _ => Task.FromResult(StageResult.Success()))
+            .Add("reviewer", ctx => Task.FromResult(StageResult.Malformed("no <artifact name=\"review\"> block", Feedback(ctx, "end with the tag"))));
+        using var run = new TestRun(Loop, agents);
+
+        var outcome = await run.RunAsync();
+
+        outcome.Succeeded.Should().BeFalse();
+        implementRuns.Should().Be(1, "a format failure is not a verdict about the implementation");
+        run.EventsOfKind(EventKind.ReplanTriggered).Single()["accepted"].Should().Be("false");
+        run.EventsOfKind(EventKind.ReplanTriggered).Single()["cause"].Should().StartWith("not a verdict");
+    }
+}

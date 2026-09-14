@@ -46,7 +46,7 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
         }
         catch (AgentOutputException e)
         {
-            return StageResult.Failure(e.Message,
+            return StageResult.Malformed(e.Message,
                 new Artifact("feedback", ArtifactKind.Feedback, $"Your previous final message could not be used: {e.Message}\nEnd with the required <artifact> block(s).", context.Stage.Id, []));
         }
     }

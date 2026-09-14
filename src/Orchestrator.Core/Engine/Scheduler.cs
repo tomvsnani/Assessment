@@ -18,7 +18,8 @@ public sealed class Scheduler(
     Coordinator coordinator,
     Saga saga,
     SafeStop safeStop,
-    EventStore events)
+    EventStore events,
+    Func<CancellationToken, Task>? beforeRollback = null)
 {
     public async Task<RunOutcome> RunAsync(Requirement requirement, IWorkspace workspace)
     {
@@ -87,7 +88,7 @@ public sealed class Scheduler(
 
                 case StageExecution.Failed failed:
                     state.MarkFailed(failed.StageId);
-                    var replanned = await coordinator.TryRerunFromAsync(graph[failed.StageId], failed.Reason, failed.Artifacts, safeStop.Token);
+                    var replanned = await coordinator.TryRerunFromAsync(graph[failed.StageId], failed.Reason, failed.Artifacts, failed.MayReplan, safeStop.Token);
                     if (!replanned)
                     {
                         safeStop.Trigger($"stage '{failed.StageId}' failed: {failed.Reason}");
@@ -114,6 +115,11 @@ public sealed class Scheduler(
 
         if (safeStop.Triggered)
         {
+            if (beforeRollback is not null)
+            {
+                await beforeRollback(CancellationToken.None); // keep what was built for inspection before it is undone
+            }
+
             await saga.RollbackAsync(safeStop.Reason ?? "safe stop");
             events.Append(EventKind.RunFailed, null, ("reason", safeStop.Reason ?? "safe stop"));
             return new RunOutcome(false, safeStop.Reason ?? "safe stop");

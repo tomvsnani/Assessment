@@ -58,7 +58,7 @@ stages:
   - id: review
     agent: reviewer
     depends_on: [verify]
-    retry: { max_attempts: 2, base_delay_seconds: 2 }
+    retry: { max_attempts: 3, base_delay_seconds: 2 }
     entry:
       policies: [segregation-of-duties]
     exit:

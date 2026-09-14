@@ -28,7 +28,15 @@ public static class RunOutput
 
         await File.WriteAllTextAsync(Path.Combine(runDir, "metrics.txt"), ReliabilityMetrics.From(events).Render());
         await File.WriteAllTextAsync(Path.Combine(runDir, "lineage.mmd"), Lineage.From(events).RenderMermaid());
+        if (!Directory.Exists(Path.Combine(runDir, "output")))
+        {
+            await SnapshotOutputAsync(runDir, workspace, baseline); // succeeded runs snapshot here; failed ones did so before rollback
+        }
+    }
 
+    /// <summary>Copies every file the agents created or changed into <c>output/</c>. Called before a rollback so failed runs keep their evidence.</summary>
+    public static async Task SnapshotOutputAsync(string runDir, IWorkspace workspace, WorkspaceCheckpoint baseline)
+    {
         var outputDir = Path.Combine(runDir, "output");
         foreach (var path in workspace.ChangedSince(baseline))
         {

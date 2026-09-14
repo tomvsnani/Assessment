@@ -107,7 +107,7 @@ public sealed class Executor(
                         return new StageExecution.Rejected(stage.Id, rejected.Rationale);
 
                     case ExitOutcome.Retry retry:
-                        attemptResult = new AttemptOutcome.Failed(retry.Reason, retry.Feedback, retry.FromHuman);
+                        attemptResult = new AttemptOutcome.Failed(retry.Reason, retry.Feedback, retry.FromHuman, retry.IsVerdict);
                         break;
                 }
             }
@@ -150,7 +150,7 @@ public sealed class Executor(
                 continue;
             }
 
-            return Fail(stage, failed.Reason, [artifacts[FeedbackArtifact]]);
+            return Fail(stage, failed.Reason, [artifacts[FeedbackArtifact]], failed.IsVerdict);
         }
     }
 
@@ -179,7 +179,7 @@ public sealed class Executor(
         var missing = stage.Exit.RequiredArtifacts.Where(name => !produced.ContainsKey(name)).ToList();
         if (missing.Count > 0)
         {
-            return new ExitOutcome.Retry($"agent did not produce required artifact(s): {string.Join(", ", missing)}", null, FromHuman: false);
+            return new ExitOutcome.Retry($"agent did not produce required artifact(s): {string.Join(", ", missing)}", null, FromHuman: false, IsVerdict: false);
         }
 
         var changed = new List<ChangedFile>();
@@ -200,7 +200,7 @@ public sealed class Executor(
             var feedback = new Artifact(FeedbackArtifact, ArtifactKind.Feedback,
                 "The previous attempt was blocked by policy. Fix the following and try again:\n- " + string.Join("\n- ", gate.Blocks),
                 stage.Id, []);
-            return new ExitOutcome.Retry($"exit gate closed: {gate.Summary}", feedback, FromHuman: false);
+            return new ExitOutcome.Retry($"exit gate closed: {gate.Summary}", feedback, FromHuman: false, IsVerdict: false);
         }
 
         if (stage.Exit.Approval is null)
@@ -216,7 +216,7 @@ public sealed class Executor(
             DecisionKind.Rejected => new ExitOutcome.Rejected(approval.Rationale),
             _ => new ExitOutcome.Retry("revision requested by human",
                 new Artifact(FeedbackArtifact, ArtifactKind.Feedback, $"A human reviewed your output and asked for changes:\n{approval.Rationale}", stage.Id, []),
-                FromHuman: true),
+                FromHuman: true, IsVerdict: false),
         };
     }
 
@@ -228,7 +228,7 @@ public sealed class Executor(
             return result.Outcome == StageOutcome.Succeeded
                 ? new AttemptOutcome.Succeeded(result)
                 : new AttemptOutcome.Failed(result.FailureReason ?? "agent reported failure",
-                    result.Artifacts.FirstOrDefault(a => a.Kind == ArtifactKind.Feedback), FromHuman: false);
+                    result.Artifacts.FirstOrDefault(a => a.Kind == ArtifactKind.Feedback), FromHuman: false, IsVerdict: result.IsVerdict);
         }
         catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
         {
@@ -236,7 +236,7 @@ public sealed class Executor(
         }
         catch (Exception e)
         {
-            return new AttemptOutcome.Failed($"{e.GetType().Name}: {e.Message}", null, FromHuman: false);
+            return new AttemptOutcome.Failed($"{e.GetType().Name}: {e.Message}", null, FromHuman: false, IsVerdict: false);
         }
     }
 
@@ -273,16 +273,16 @@ public sealed class Executor(
         }).ToList();
     }
 
-    private StageExecution.Failed Fail(StageDefinition stage, string reason, IReadOnlyList<Artifact> artifacts)
+    private StageExecution.Failed Fail(StageDefinition stage, string reason, IReadOnlyList<Artifact> artifacts, bool mayReplan = true)
     {
-        events.Append(EventKind.StageFailed, stage.Id, ("reason", reason));
-        return new StageExecution.Failed(stage.Id, reason, artifacts);
+        events.Append(EventKind.StageFailed, stage.Id, ("reason", reason), ("verdict", mayReplan.ToString()));
+        return new StageExecution.Failed(stage.Id, reason, artifacts, mayReplan);
     }
 
     private abstract record AttemptOutcome
     {
         public sealed record Succeeded(StageResult Result) : AttemptOutcome;
-        public sealed record Failed(string Reason, Artifact? Feedback, bool FromHuman) : AttemptOutcome;
+        public sealed record Failed(string Reason, Artifact? Feedback, bool FromHuman, bool IsVerdict = true) : AttemptOutcome;
         public sealed record Cancelled : AttemptOutcome;
     }
 
@@ -290,6 +290,6 @@ public sealed class Executor(
     {
         public sealed record Passed(IReadOnlyList<Artifact> Artifacts, IReadOnlyList<Decision> Decisions) : ExitOutcome;
         public sealed record Rejected(string Rationale) : ExitOutcome;
-        public sealed record Retry(string Reason, Artifact? Feedback, bool FromHuman) : ExitOutcome;
+        public sealed record Retry(string Reason, Artifact? Feedback, bool FromHuman, bool IsVerdict) : ExitOutcome;
     }
 }
