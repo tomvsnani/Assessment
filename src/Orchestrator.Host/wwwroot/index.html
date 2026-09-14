@@ -21,11 +21,12 @@
 
   <section id="composer" class="card composer" hidden>
     <h2>New run <span class="muted small">any requirement, any baseline — the presets are just examples</span></h2>
+    <p class="small muted">Pick a preset to load its requirement, then <b>edit the text freely</b> — or write your own. Anything you change makes it an ad-hoc run recorded under its own id. The requirements agent will surface whatever it finds ambiguous and ask you at the first gate.</p>
     <div class="composer-grid">
-      <label>Preset <select id="preset"><option value="">— write your own —</option></select></label>
+      <label>Start from <select id="preset"><option value="">— blank: write your own —</option></select></label>
       <label>Baseline <select id="baseline"></select></label>
       <label>Title <input type="text" id="reqTitle" placeholder="short title"></label>
-      <label class="wide">Requirement <textarea id="reqText" rows="10" placeholder="Describe what you need, the way a product owner would. Ambiguity is fine — the requirements agent will surface it and ask you to decide."></textarea></label>
+      <label class="wide">Requirement <span class="muted small" id="reqState"></span><textarea id="reqText" rows="12" placeholder="Describe what you need, the way a product owner would. Ambiguity is fine — the requirements agent will surface it and ask you to decide."></textarea></label>
       <label><input type="checkbox" id="live" checked> live (calls the provider and records)</label>
       <label>Provider <select id="provider"></select></label>
       <label>Model <input type="text" id="model" placeholder="provider default"></label>

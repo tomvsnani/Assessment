@@ -332,13 +332,21 @@
 
   // ---------- composer ----------
   function openComposer() { $('composer').hidden = false; $('composer').scrollIntoView({ behavior: 'smooth' }); }
+  function reqState() {
+    const p = state.presets.find(x => x.name === $('preset').value);
+    const unchanged = p && $('reqText').value.trim() === p.requirement.text.trim() && $('baseline').value === p.baseline;
+    $('reqState').textContent = !p ? '(your own requirement — runs live)' : unchanged ? `(preset "${p.name}" unchanged${p.hasRecording ? ' — replayable' : ''})` : `(preset "${p.name}" edited — will run live as an ad-hoc requirement)`;
+  }
   function applyPreset(name) {
     const p = state.presets.find(x => x.name === name);
-    if (!p) { $('composeHint').textContent = 'Ad-hoc requirement: runs live and records into its own run directory.'; return; }
+    if (!p) { $('composeHint').textContent = 'Ad-hoc requirement: runs live and records into its own run directory.'; reqState(); return; }
     $('reqTitle').value = p.requirement.title; $('reqText').value = p.requirement.text; $('baseline').value = p.baseline;
     $('live').checked = !p.hasRecording; $('approver').value = $('live').checked ? 'web' : 'replay';
     $('composeHint').textContent = p.hasRecording ? 'This preset has committed recordings: untick "live" to replay without a key. Edit the text and it becomes an ad-hoc run.' : 'No recording yet for this preset; it will run live.';
+    reqState();
   }
+  ['reqText', 'baseline'].forEach(id => $(id).addEventListener('input', reqState));
+  $('baseline').addEventListener('change', reqState);
   function updateReplayButton() {
     const r = state.runs.find(x => x.id === state.runId);
     $('replayRun').disabled = !(r && r.status !== 'running' && r.replayable);
@@ -385,7 +393,9 @@
     if (!localStorage.getItem('actor')) localStorage.setItem('actor', 'dashboard-user');
     await refreshRunList();
     renderSummary(null);
+    // Load the first preset into the editable box so a reviewer can change the requirement right away.
+    if (presets.length) { $('preset').value = presets[0].name; applyPreset(presets[0].name); }
     const running = state.runs.find(r => r.status === 'running');
-    if (running) selectRun(running.id); else if (!state.runs.length) openComposer();
+    if (running) selectRun(running.id); else $('composer').hidden = false;
   })();
 })();
