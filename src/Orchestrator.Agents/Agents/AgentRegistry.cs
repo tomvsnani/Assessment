@@ -16,7 +16,7 @@ public sealed class AgentRegistry : IAgentRegistry
             new PlannerAgent(deps),
             new ImplementerAgent(deps),
             new TestDesignerAgent(deps),
-            new VerifierAgent(deps.Log),
+            new VerifierAgent(deps.Trace, deps.Log),
             new ReviewerAgent(deps),
             new DocWriterAgent(deps),
             new ReleaseManagerAgent(deps),

@@ -36,8 +36,8 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
         var system = Deps.Prompts.SystemPromptFor(Role);
         var user = ContextRenderer.Render(context, Reads, ExtraContext(context));
 
-        var loop = new AgentToolLoop(Deps.Llm, Deps.Log);
-        var outcome = await loop.RunAsync(Role, system, user, tools, context.CancellationToken, MaxIterations);
+        var loop = new AgentToolLoop(Deps.Llm, Deps.Trace, Deps.Log);
+        var outcome = await loop.RunAsync(context.Stage.Id, Role, system, user, tools, context.CancellationToken, MaxIterations);
         Deps.Log($"{Role}: {outcome.Iterations} turns, {outcome.ToolCalls} tool calls, {outcome.InputTokens}+{outcome.OutputTokens} tokens");
 
         try
@@ -87,4 +87,4 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
 }
 
 /// <summary>What every agent needs; built once by the CLI.</summary>
-public sealed record AgentDependencies(ILlmClient Llm, PromptLibrary Prompts, Func<IWorkspace, ICodebaseIndex> IndexFor, Action<string> Log);
+public sealed record AgentDependencies(ILlmClient Llm, PromptLibrary Prompts, Func<IWorkspace, ICodebaseIndex> IndexFor, IRunTrace Trace, Action<string> Log);

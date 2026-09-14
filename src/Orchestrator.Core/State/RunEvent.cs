@@ -36,4 +36,8 @@ public enum EventKind
     SafeStopTriggered,
     RunCompleted,
     RunFailed,
+
+    // Agent-level trace: what a role said and which tools it used. Not audited; shown on the dashboard.
+    AgentTurn,
+    ToolInvoked,
 }

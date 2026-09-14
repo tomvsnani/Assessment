@@ -12,9 +12,9 @@ public class AgentLoopAndParsingTests
         var workspace = new InMemoryWorkspace();
         await workspace.WriteFileAsync("a.cs", "class A {}", CancellationToken.None);
         var llm = new FakeLlmClient(FakeLlmClient.Call("read_file", new { path = "a.cs" }), FakeLlmClient.Text("done"));
-        var loop = new AgentToolLoop(llm, _ => { });
+        var loop = new AgentToolLoop(llm, new NullTrace(), _ => { });
 
-        var outcome = await loop.RunAsync("r", "sys", "user", [new ReadFileTool(workspace)], CancellationToken.None);
+        var outcome = await loop.RunAsync("stage", "r", "sys", "user", [new ReadFileTool(workspace)], CancellationToken.None);
 
         outcome.FinalText.Should().Be("done");
         outcome.ToolCalls.Should().Be(1);
@@ -29,9 +29,9 @@ public class AgentLoopAndParsingTests
     public async Task Given_unknown_tool_When_called_Then_error_result_is_returned_not_thrown()
     {
         var llm = new FakeLlmClient(FakeLlmClient.Call("format_disk", new { }), FakeLlmClient.Text("ok"));
-        var loop = new AgentToolLoop(llm, _ => { });
+        var loop = new AgentToolLoop(llm, new NullTrace(), _ => { });
 
-        await loop.RunAsync("r", "sys", "user", [], CancellationToken.None);
+        await loop.RunAsync("stage", "r", "sys", "user", [], CancellationToken.None);
 
         var results = (Orchestrator.Agents.Llm.LlmMessage.ToolResults)llm.Requests[1].Messages[2];
         results.Results.Single().IsError.Should().BeTrue();
@@ -43,9 +43,9 @@ public class AgentLoopAndParsingTests
     {
         var turns = Enumerable.Range(0, 3).Select(_ => FakeLlmClient.Call("list_files", new { })).Append(FakeLlmClient.Text("final")).ToArray();
         var llm = new FakeLlmClient(turns);
-        var loop = new AgentToolLoop(llm, _ => { });
+        var loop = new AgentToolLoop(llm, new NullTrace(), _ => { });
 
-        var outcome = await loop.RunAsync("r", "sys", "user", [new ListFilesTool(new InMemoryWorkspace())], CancellationToken.None, maxIterations: 3);
+        var outcome = await loop.RunAsync("stage", "r", "sys", "user", [new ListFilesTool(new InMemoryWorkspace())], CancellationToken.None, maxIterations: 3);
 
         outcome.HitIterationLimit.Should().BeTrue();
         outcome.FinalText.Should().Be("final");

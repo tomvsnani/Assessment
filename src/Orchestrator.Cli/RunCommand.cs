@@ -48,7 +48,7 @@ public sealed class RunCommand(CliOptions options)
             : RecordingClient.Replay(Path.Combine(recordingDir, "llm"), Log);
         var approver = BuildApprover(recordingDir);
 
-        var deps = new AgentDependencies(llm, new PromptLibrary(paths.Prompts, paths.ClaudeMd), ws => new RoslynCodebaseIndex(ws), Log);
+        var deps = new AgentDependencies(llm, new PromptLibrary(paths.Prompts, paths.ClaudeMd), ws => new RoslynCodebaseIndex(ws), new EventStoreTrace(events), Log);
         var agents = new AgentRegistry(deps);
 
         var graph = new DependencyGraph(workflow.Stages);

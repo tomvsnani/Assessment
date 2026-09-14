@@ -1,21 +1,25 @@
+using System.Diagnostics;
 using System.Globalization;
 using Orchestrator.Agents.Llm;
 using Orchestrator.Agents.Tools;
+using Orchestrator.Core.Contracts;
 
 namespace Orchestrator.Agents.Agents;
 
 /// <summary>
 /// The one agentic loop every LLM-backed role shares: send the conversation, execute whatever
 /// tools the model asked for (all of them, results returned in one message), repeat until the
-/// model stops calling tools or the iteration budget is spent.
+/// model stops calling tools or the iteration budget is spent. Every turn and tool call is
+/// reported through <see cref="IRunTrace"/> so the dashboard can show the agent working.
 /// </summary>
-public sealed class AgentToolLoop(ILlmClient client, Action<string> log)
+public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<string> log)
 {
     public const int DefaultMaxIterations = 40;
 
     public sealed record Outcome(string FinalText, int Iterations, int ToolCalls, int InputTokens, int OutputTokens, bool HitIterationLimit);
 
     public async Task<Outcome> RunAsync(
+        string stageId,
         string label,
         string systemPrompt,
         string userMessage,
@@ -42,6 +46,7 @@ public sealed class AgentToolLoop(ILlmClient client, Action<string> log)
             inputTokens += response.InputTokens;
             outputTokens += response.OutputTokens;
             messages.Add(response.Turn);
+            trace.AgentTurn(stageId, label, iteration, response.Turn.Text, response.Turn.ToolCalls.Count, response.InputTokens, response.OutputTokens);
 
             if (!response.WantsTools)
             {
@@ -52,7 +57,7 @@ public sealed class AgentToolLoop(ILlmClient client, Action<string> log)
             foreach (var call in response.Turn.ToolCalls)
             {
                 toolCalls++;
-                results.Add(await InvokeAsync(toolsByName, call, ct));
+                results.Add(await InvokeAsync(stageId, label, toolsByName, call, ct));
             }
 
             messages.Add(new LlmMessage.ToolResults(results));
@@ -61,31 +66,38 @@ public sealed class AgentToolLoop(ILlmClient client, Action<string> log)
         log($"{label}: iteration limit ({maxIterations}) reached; asking for the final answer");
         messages.Add(new LlmMessage.UserText("You have used your tool budget. Stop using tools and produce your final answer now."));
         var last = await CompleteWithRetryAsync(new LlmRequest(systemPrompt, [.. messages], []), ct);
+        trace.AgentTurn(stageId, label, maxIterations + 1, last.Turn.Text, 0, last.InputTokens, last.OutputTokens);
         return new Outcome(last.Turn.Text, maxIterations + 1, toolCalls, inputTokens + last.InputTokens, outputTokens + last.OutputTokens, true);
     }
 
-    private async Task<ToolResult> InvokeAsync(Dictionary<string, ITool> tools, ToolCall call, CancellationToken ct)
+    private async Task<ToolResult> InvokeAsync(string stageId, string label, Dictionary<string, ITool> tools, ToolCall call, CancellationToken ct)
     {
+        var stopwatch = Stopwatch.StartNew();
+        ToolResult result;
         if (!tools.TryGetValue(call.Name, out var tool))
         {
-            return new ToolResult(call.Id, call.Name, $"ERROR: unknown tool '{call.Name}'", IsError: true);
+            result = new ToolResult(call.Id, call.Name, $"ERROR: unknown tool '{call.Name}'", IsError: true);
+        }
+        else
+        {
+            try
+            {
+                var output = await tool.InvokeAsync(call.Input, ct);
+                result = new ToolResult(call.Id, call.Name, output, output.StartsWith("ERROR", StringComparison.Ordinal));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                result = new ToolResult(call.Id, call.Name, $"ERROR: {e.GetType().Name}: {e.Message}", IsError: true);
+            }
         }
 
-        try
-        {
-            var output = await tool.InvokeAsync(call.Input, ct);
-            log($"  tool {call.Name} {Describe(call)} -> {output.Split('\n')[0].Truncate(80)}");
-            return new ToolResult(call.Id, call.Name, output, output.StartsWith("ERROR", StringComparison.Ordinal));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            log($"  tool {call.Name} threw {e.GetType().Name}: {e.Message}");
-            return new ToolResult(call.Id, call.Name, $"ERROR: {e.GetType().Name}: {e.Message}", IsError: true);
-        }
+        trace.ToolInvoked(stageId, label, call.Name, DescribeArguments(call), result.Content.Truncate(600), result.IsError, stopwatch.Elapsed);
+        log($"  tool {call.Name} {Describe(call)} -> {result.Content.Split('\n')[0].Truncate(80)}");
+        return result;
     }
 
     /// <summary>Transient provider errors (429, 5xx) are retried a few times; anything else surfaces to the executor.</summary>
@@ -109,6 +121,12 @@ public sealed class AgentToolLoop(ILlmClient client, Action<string> log)
             }
         }
     }
+
+    /// <summary>write_file arguments carry whole files; the trace shows the path and size, the recording keeps the content.</summary>
+    private static string DescribeArguments(ToolCall call) =>
+        call.Name == "write_file"
+            ? $"{{\"path\": \"{call.Input.OptionalArg("path")}\", \"content\": \"({call.Input.OptionalArg("content")?.Length ?? 0} chars)\"}}"
+            : call.Input.GetRawText();
 
     private static string Describe(ToolCall call) =>
         call.Input.TryGetProperty("path", out var p) ? p.GetString() ?? string.Empty
