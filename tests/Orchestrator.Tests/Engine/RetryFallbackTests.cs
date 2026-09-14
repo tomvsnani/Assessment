@@ -10,7 +10,6 @@ public class RetryFallbackTests
 {
     private const string WithRetry = """
         name: retry
-        requirement: r.md
         stages:
           - id: work
             agent: flaky

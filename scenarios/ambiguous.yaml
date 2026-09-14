@@ -1,0 +1,5 @@
+# Ambiguous: a vague compliance request against the existing shortener; the requirements agent must surface the open questions and a human must decide.
+name: ambiguous
+workflow: sdlc
+baseline: git:v1-legacy
+requirement: requirements/ambiguous.md

@@ -121,3 +121,11 @@ pre { background: #0b0f14; border: 1px solid var(--border); border-radius: 6px; 
 
 .audit-row { display: grid; grid-template-columns: 40px 150px 110px 120px 1fr; gap: 8px; font-size: 12px; padding: 3px 0; border-bottom: 1px solid var(--border); }
 .audit-row.broken { color: var(--bad); }
+
+.composer { margin: 12px 16px 0; border-color: var(--accent); }
+.composer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.composer-grid label { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.composer-grid label.wide { grid-column: 1 / -1; }
+.composer-grid label:has(input[type=checkbox]) { flex-direction: row; align-items: center; }
+.composer-grid .actions { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
+.composer-grid textarea { font-family: inherit; min-height: 160px; }

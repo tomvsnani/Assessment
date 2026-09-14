@@ -11,21 +11,34 @@
     <div class="brand">SDLC Orchestrator <span class="muted">agentic delivery with human gates</span></div>
     <div class="controls">
       <label>Run <select id="runPicker"></select></label>
-      <span class="sep"></span>
-      <label>Scenario <select id="scenario"></select></label>
-      <label><input type="checkbox" id="live"> live (calls the provider)</label>
-      <label>Approver <select id="approver">
-        <option value="">auto</option>
-        <option value="web">web (you decide here)</option>
-        <option value="replay">replay recorded decisions</option>
-        <option value="unattended">unattended (auto-approve, labelled)</option>
-      </select></label>
-      <button id="start" class="primary">Start run</button>
+      <button id="newRun">New run…</button>
+      <button id="replayRun" title="Replay the selected run from its own recording" disabled>Replay this run</button>
       <button id="stop" class="danger" disabled>Safe stop</button>
     </div>
   </header>
 
   <div id="banner" class="banner" hidden></div>
+
+  <section id="composer" class="card composer" hidden>
+    <h2>New run <span class="muted small">any requirement, any baseline — the presets are just examples</span></h2>
+    <div class="composer-grid">
+      <label>Preset <select id="preset"><option value="">— write your own —</option></select></label>
+      <label>Baseline <select id="baseline"></select></label>
+      <label>Title <input type="text" id="reqTitle" placeholder="short title"></label>
+      <label class="wide">Requirement <textarea id="reqText" rows="10" placeholder="Describe what you need, the way a product owner would. Ambiguity is fine — the requirements agent will surface it and ask you to decide."></textarea></label>
+      <label><input type="checkbox" id="live" checked> live (calls the provider and records)</label>
+      <label>Approver <select id="approver">
+        <option value="web">web (you decide here)</option>
+        <option value="replay">replay recorded decisions</option>
+        <option value="unattended">unattended (auto-approve, labelled)</option>
+      </select></label>
+      <div class="actions">
+        <button id="start" class="primary">Start run</button>
+        <button id="cancelCompose">Cancel</button>
+        <span id="composeHint" class="muted small"></span>
+      </div>
+    </div>
+  </section>
 
   <main class="layout">
     <aside class="left">
@@ -34,7 +47,9 @@
         <div class="badges">
           <span id="status" class="badge">no run</span>
           <span id="mode" class="badge muted"></span>
+          <span id="baselineBadge" class="badge muted"></span>
         </div>
+        <div id="title" class="small"></div>
         <div id="outcome" class="small muted"></div>
       </section>
 

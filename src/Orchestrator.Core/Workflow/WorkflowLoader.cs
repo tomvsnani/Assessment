@@ -1,4 +1,3 @@
-using Orchestrator.Core.Contracts;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -25,13 +24,7 @@ public static class WorkflowLoader
         var stages = dto.Stages.Select(ToStage).ToList();
         _ = new DependencyGraph(stages); // validates ids, dependencies and acyclicity
 
-        return new WorkflowDefinition(
-            dto.Name,
-            Enum.Parse<ScenarioKind>(dto.Kind, ignoreCase: true),
-            dto.Requirement ?? throw new WorkflowValidationException("Workflow needs a requirement path."),
-            dto.Baseline ?? "scaffold",
-            dto.MaxParallel is > 0 ? dto.MaxParallel.Value : 4,
-            stages);
+        return new WorkflowDefinition(dto.Name, dto.MaxParallel is > 0 ? dto.MaxParallel.Value : 4, stages);
     }
 
     private static StageDefinition ToStage(StageDto s)
@@ -63,9 +56,6 @@ public static class WorkflowLoader
     private sealed class WorkflowDto
     {
         public string? Name { get; set; }
-        public string Kind { get; set; } = "greenfield";
-        public string? Requirement { get; set; }
-        public string? Baseline { get; set; }
         public int? MaxParallel { get; set; }
         public List<StageDto> Stages { get; set; } = [];
     }

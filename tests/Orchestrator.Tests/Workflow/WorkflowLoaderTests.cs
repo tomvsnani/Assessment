@@ -1,4 +1,3 @@
-using Orchestrator.Core.Contracts;
 using Orchestrator.Core.Workflow;
 
 namespace Orchestrator.Tests.Workflow;
@@ -7,9 +6,6 @@ public class WorkflowLoaderTests
 {
     private const string Yaml = """
         name: sample
-        kind: brownfield
-        requirement: requirements/sample.md
-        baseline: git:v1-legacy
         max_parallel: 2
         stages:
           - id: requirements
@@ -41,9 +37,6 @@ public class WorkflowLoaderTests
         var workflow = WorkflowLoader.Parse(Yaml);
 
         workflow.Name.Should().Be("sample");
-        workflow.Kind.Should().Be(ScenarioKind.Brownfield);
-        workflow.RequirementPath.Should().Be("requirements/sample.md");
-        workflow.Baseline.Should().Be("git:v1-legacy");
         workflow.MaxParallelStages.Should().Be(2);
         workflow.Stages.Should().HaveCount(3);
     }

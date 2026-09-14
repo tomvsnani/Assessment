@@ -7,18 +7,22 @@ using Orchestrator.Host.Runs;
 namespace Orchestrator.Host.Headless;
 
 /// <summary>
-/// The same service without a port: <c>sdlc run &lt;scenario&gt; [--live] [--unattended] [--provider p] [--model m]</c>,
-/// <c>sdlc graph &lt;scenario&gt;</c>, <c>sdlc verify-audit &lt;runs/dir&gt;</c>. Used by CI and by graders who
-/// prefer a terminal; approvals come from the console.
+/// The same service without a port: run a preset, an ad-hoc requirement file, or replay a finished
+/// run; print a workflow graph; verify an audit chain. Used by CI and by graders who prefer a
+/// terminal; approvals come from the console.
 /// </summary>
 public static class HeadlessMode
 {
     public const string Usage = """
         usage:
           sdlc                                   start the API + dashboard on http://localhost:5100
-          sdlc run <scenario> [--live] [--unattended] [--provider anthropic|openai|gemini] [--model <id>]
-          sdlc graph <scenario>
+          sdlc run <scenario>                                  replay a preset (greenfield | brownfield | ambiguous)
+          sdlc run <scenario> --live [--unattended]            run a preset against the provider and re-record it
+          sdlc run --requirement <file.md> [--baseline git:v1-legacy] --live   run any requirement (ad hoc, live only)
+          sdlc run --replay <run-id>                           replay a finished run from runs/<id>/recording
+          sdlc graph [workflow]                                print the stage graph (default: sdlc)
           sdlc verify-audit <runs/dir>
+        options: --provider anthropic|openai|gemini  --model <id>
         """;
 
     public static async Task<int> RunAsync(string[] args, RunService service, RepositoryPaths paths, CancellationToken ctrlC)
@@ -26,9 +30,9 @@ public static class HeadlessMode
         switch (args[0])
         {
             case "run" when args.Length >= 2:
-                return await RunScenarioAsync(args, service, ctrlC);
-            case "graph" when args.Length == 2:
-                return Graph(args[1], paths);
+                return await RunScenarioAsync(args, service, paths, ctrlC);
+            case "graph":
+                return Graph(args.Length > 1 ? args[1] : "sdlc", paths);
             case "verify-audit" when args.Length == 2:
                 return VerifyAudit(args[1]);
             default:
@@ -37,19 +41,32 @@ public static class HeadlessMode
         }
     }
 
-    private static async Task<int> RunScenarioAsync(string[] args, RunService service, CancellationToken ctrlC)
+    private static async Task<int> RunScenarioAsync(string[] args, RunService service, RepositoryPaths paths, CancellationToken ctrlC)
     {
         var live = args.Contains("--live");
         var unattended = args.Contains("--unattended");
-        var provider = ValueOf(args, "--provider");
-        var model = ValueOf(args, "--model");
-        var request = new RunRequest(args[1], live, provider, model, live ? (unattended ? "unattended" : "console") : "replay");
+        var approver = live ? (unattended ? "unattended" : "console") : "replay";
+        RunRequest request;
+        if (ValueOf(args, "--requirement") is { } file)
+        {
+            var requirement = RequirementFile.Load(Path.GetFullPath(file, paths.Root), Core.Contracts.ScenarioKind.Greenfield);
+            request = new RunRequest(Requirement: new RequirementInput(requirement.Title, requirement.Text), Baseline: ValueOf(args, "--baseline"),
+                Live: true, Provider: ValueOf(args, "--provider"), Model: ValueOf(args, "--model"), Approver: unattended ? "unattended" : "console");
+        }
+        else if (ValueOf(args, "--replay") is { } runId)
+        {
+            request = new RunRequest(ReplayOf: runId, Approver: "replay");
+        }
+        else
+        {
+            request = new RunRequest(Scenario: args[1], Live: live, Provider: ValueOf(args, "--provider"), Model: ValueOf(args, "--model"), Approver: approver);
+        }
 
-        Console.WriteLine($"mode: {(live ? $"LIVE via {request.EffectiveProvider}" : "REPLAY from committed recordings")}");
+        Console.WriteLine($"mode: {(request.Live ? $"LIVE via {request.EffectiveProvider}" : "REPLAY from recordings")}");
         var console = new ConsoleApprover(Environment.GetEnvironmentVariable("SDLC_APPROVER") ?? Environment.UserName);
         var handle = await service.StartAsync(request, console, line => Console.WriteLine($"          {line}"), ctrlC);
         using var renderer = new ConsoleRenderer(handle.Events);
-        Console.WriteLine($"run: {handle.Id}   workspace baseline: {handle.Workflow.Baseline}");
+        Console.WriteLine($"run: {handle.Id}   requirement: {handle.Requirement.Title}   baseline: {handle.Spec.Baseline}");
 
         var outcome = await handle.Completion;
         Console.WriteLine();
@@ -64,7 +81,7 @@ public static class HeadlessMode
     {
         var workflow = WorkflowLoader.Load(paths.WorkflowFile(scenario));
         var graph = new DependencyGraph(workflow.Stages);
-        Console.WriteLine($"{workflow.Name} ({workflow.Kind}) baseline={workflow.Baseline} max_parallel={workflow.MaxParallelStages}");
+        Console.WriteLine($"{workflow.Name} max_parallel={workflow.MaxParallelStages}");
         foreach (var (level, index) in graph.ParallelLevels().Select((l, i) => (l, i)))
         {
             Console.WriteLine($"level {index}: {string.Join("  ‖  ", level)}");

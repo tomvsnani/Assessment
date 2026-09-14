@@ -22,7 +22,7 @@ public sealed class Scheduler(
 {
     public async Task<RunOutcome> RunAsync(Requirement requirement, IWorkspace workspace)
     {
-        events.Append(EventKind.RunStarted, null, ("workflow", workflow.Name), ("kind", workflow.Kind.ToString()), ("requirement", requirement.Id));
+        events.Append(EventKind.RunStarted, null, ("workflow", workflow.Name), ("kind", requirement.Kind.ToString()), ("requirement", requirement.Id), ("title", requirement.Title));
         foreach (var stage in graph.Stages)
         {
             events.Append(EventKind.StageScheduled, stage.Id, ("dependsOn", string.Join(",", stage.DependsOn)));

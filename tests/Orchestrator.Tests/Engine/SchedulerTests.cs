@@ -8,7 +8,6 @@ public class SchedulerTests
 {
     private const string Linear = """
         name: linear
-        requirement: r.md
         stages:
           - { id: a, agent: worker-a, exit: { artifacts: [alpha] } }
           - { id: b, agent: worker-b, depends_on: [a], exit: { artifacts: [beta] } }
@@ -17,7 +16,6 @@ public class SchedulerTests
 
     private const string Diamond = """
         name: diamond
-        requirement: r.md
         max_parallel: 4
         stages:
           - { id: plan, agent: planner }

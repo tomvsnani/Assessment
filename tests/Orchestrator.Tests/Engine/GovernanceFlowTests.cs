@@ -10,7 +10,6 @@ public class GovernanceFlowTests
 {
     private const string Gated = """
         name: gated
-        requirement: r.md
         stages:
           - id: requirements
             agent: requirements

@@ -1,0 +1,5 @@
+# Brownfield: modernize click counting on the v1 (legacy) shortener; the workspace starts from tag v1-legacy.
+name: brownfield
+workflow: sdlc
+baseline: git:v1-legacy
+requirement: requirements/brownfield.md

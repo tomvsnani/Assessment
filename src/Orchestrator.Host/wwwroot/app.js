@@ -3,7 +3,8 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const api = {
-    workflows: () => fetch('/api/workflows').then(r => r.json()),
+    scenarios: () => fetch('/api/scenarios').then(r => r.json()),
+    baselines: () => fetch('/api/baselines').then(r => r.json()),
     workflow: (name) => fetch(`/api/workflows/${name}/graph`).then(r => r.json()),
     runs: () => fetch('/api/runs').then(r => r.json()),
     run: (id) => fetch(`/api/runs/${id}`).then(r => r.ok ? r.json() : null),
@@ -14,7 +15,7 @@
     stop: (id) => fetch(`/api/runs/${id}/stop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'dashboard' }) }),
   };
 
-  const state = { runId: null, source: null, events: [], summary: null, startedAt: null, artifactsLoaded: {} };
+  const state = { runId: null, source: null, events: [], summary: null, startedAt: null, presets: [], runs: [] };
   const LIFECYCLE = new Set(['RunStarted', 'StageScheduled', 'StageStarted', 'StageCompleted', 'StageFailed', 'StageInvalidated', 'StageAttemptFailed',
     'StageRetryScheduled', 'StageFallbackUsed', 'ArtifactProduced', 'ApprovalRequested', 'ApprovalDecided', 'ReplanTriggered',
     'CompensationRun', 'RollbackCompleted', 'SafeStopTriggered', 'RunCompleted', 'RunFailed', 'PolicyEvaluated']);
@@ -72,16 +73,19 @@
   // ---------- run selection ----------
   async function refreshRunList() {
     const runs = await api.runs();
+    state.runs = runs;
     const picker = $('runPicker');
     const current = picker.value;
     picker.innerHTML = '<option value="">— select —</option>' + runs.map(r =>
-      `<option value="${esc(r.id)}">${esc(r.id)} · ${r.status}${r.mode ? ' · ' + r.mode : ''}</option>`).join('');
+      `<option value="${esc(r.id)}">${esc(r.id)}${r.title ? ' · ' + esc(r.title) : ''} · ${r.status}${r.mode ? ' · ' + r.mode : ''}</option>`).join('');
     picker.value = state.runId || current || '';
+    updateReplayButton();
   }
 
   async function selectRun(id) {
     if (state.source) { state.source.close(); state.source = null; }
-    state.runId = id; state.events = []; state.summary = null; state.startedAt = null; state.artifactsLoaded = {};
+    state.runId = id; state.events = []; state.summary = null; state.startedAt = null;
+    updateReplayButton();
     $('timeline').innerHTML = ''; $('agents').innerHTML = ''; $('artifactList').innerHTML = ''; $('artifactView').innerHTML = '<p class="muted">Select an artifact.</p>';
     $('runPicker').value = id || '';
     if (!id) { renderSummary(null); return; }
@@ -113,6 +117,8 @@
     $('runId').textContent = s ? s.id : '';
     const st = $('status'); st.textContent = s ? s.status : 'no run'; st.className = 'badge ' + (s ? s.status : '');
     $('mode').textContent = s ? s.mode : '';
+    $('baselineBadge').textContent = s ? 'baseline ' + s.baseline : '';
+    $('title').textContent = s?.title ? s.title : '';
     $('outcome').textContent = s?.outcome || '';
     $('stop').disabled = !s || s.status !== 'running';
     renderGraph(s); renderMetrics(s); renderArtifacts(s); renderApproval(s); renderLineage(s);
@@ -273,23 +279,49 @@
   }
 
   async function loadWorkflow() {
-    const name = state.summary?.scenario || $('scenario').value;
-    const w = await api.workflow(name);
-    $('workflow').innerHTML = `<h1>${esc(w.name)} <span class="muted small">${w.kind} · baseline ${esc(w.baseline)} · max parallel ${w.maxParallelStages}</span></h1>
-      <h2>Requirement</h2>${markdown(w.requirement.replace(/^---[\s\S]*?---\n/, ''))}
+    const w = await api.workflow(state.summary?.workflow || 'sdlc');
+    $('workflow').innerHTML = `<h1>${esc(w.name)} <span class="muted small">max parallel ${w.maxParallelStages}</span></h1>
+      <p class="muted small">Every run, preset or ad hoc, follows this graph. It is defined in <code>workflows/${esc(w.name)}.yaml</code>.</p>
       <h2>Stages</h2><table><tr><th>stage</th><th>agent</th><th>depends on</th><th>entry gate</th><th>exit gate</th><th>retry / fallback</th><th>on failure</th></tr>
-      ${w.stages.map(s => `<tr><td><b>${esc(s.id)}</b></td><td>${esc(s.agent)}</td><td>${esc(s.dependsOn.join(', '))}</td><td>${gate(s.entry)}</td><td>${gate(s.exit)}</td><td>${s.retry.maxAttempts} attempt(s)${s.fallbackAgent ? ', fallback ' + esc(s.fallbackAgent) : ''}</td><td>${s.onFailure.rerunFrom ? 'rerun from ' + esc(s.onFailure.rerunFrom) + ' ×' + s.onFailure.maxLoops : 'stop run'}</td></tr>`).join('')}</table>`;
+      ${w.stages.map(s => `<tr><td><b>${esc(s.id)}</b></td><td>${esc(s.agent)}</td><td>${esc(s.dependsOn.join(', '))}</td><td>${gate(s.entry)}</td><td>${gate(s.exit)}</td><td>${s.retry.maxAttempts} attempt(s)${s.fallbackAgent ? ', fallback ' + esc(s.fallbackAgent) : ''}</td><td>${s.onFailure.rerunFrom ? 'rerun from ' + esc(s.onFailure.rerunFrom) + ' ×' + s.onFailure.maxLoops : 'stop run'}</td></tr>`).join('')}</table><h2>YAML</h2><pre>${esc(w.yaml)}</pre>`;
     function gate(g) { return [g.requiredArtifacts.length ? 'artifacts: ' + esc(g.requiredArtifacts.join(', ')) : '', g.policies.length ? 'policies: ' + esc(g.policies.join(', ')) : '', g.approval ? '<b>👤 ' + esc(g.approval) + '</b>' : ''].filter(Boolean).join('<br>') || '<span class="muted">open</span>'; }
   }
 
-  // ---------- actions ----------
+  // ---------- composer ----------
+  function openComposer() { $('composer').hidden = false; $('composer').scrollIntoView({ behavior: 'smooth' }); }
+  function applyPreset(name) {
+    const p = state.presets.find(x => x.name === name);
+    if (!p) { $('composeHint').textContent = 'Ad-hoc requirement: runs live and records into its own run directory.'; return; }
+    $('reqTitle').value = p.requirement.title; $('reqText').value = p.requirement.text; $('baseline').value = p.baseline;
+    $('live').checked = !p.hasRecording; $('approver').value = $('live').checked ? 'web' : 'replay';
+    $('composeHint').textContent = p.hasRecording ? 'This preset has committed recordings: untick "live" to replay without a key. Edit the text and it becomes an ad-hoc run.' : 'No recording yet for this preset; it will run live.';
+  }
+  function updateReplayButton() {
+    const r = state.runs.find(x => x.id === state.runId);
+    $('replayRun').disabled = !(r && r.status === 'finished' && r.replayable);
+  }
+  $('newRun').addEventListener('click', openComposer);
+  $('cancelCompose').addEventListener('click', () => { $('composer').hidden = true; });
+  $('preset').addEventListener('change', (e) => applyPreset(e.target.value));
+  $('live').addEventListener('change', () => { $('approver').value = $('live').checked ? 'web' : 'replay'; });
   $('start').addEventListener('click', async () => {
-    const body = { scenario: $('scenario').value, live: $('live').checked, approver: $('approver').value || null };
+    const presetName = $('preset').value;
+    const p = state.presets.find(x => x.name === presetName);
+    const unchanged = p && $('reqText').value.trim() === p.requirement.text.trim() && $('baseline').value === p.baseline;
+    const body = unchanged
+      ? { scenario: presetName, live: $('live').checked, approver: $('approver').value }
+      : { requirement: { title: $('reqTitle').value, text: $('reqText').value }, baseline: $('baseline').value, live: true, approver: $('approver').value === 'replay' ? 'web' : $('approver').value };
+    if (!unchanged && !$('reqText').value.trim()) { banner('Write a requirement first.', true); return; }
     const r = await api.start(body);
     if (!r.ok) { banner(r.body.error || 'could not start', true); return; }
-    banner('');
+    banner(''); $('composer').hidden = true;
     await refreshRunList();
     await selectRun(r.body.id);
+  });
+  $('replayRun').addEventListener('click', async () => {
+    const r = await api.start({ replayOf: state.runId, approver: 'replay' });
+    if (!r.ok) { banner(r.body.error || 'could not replay', true); return; }
+    await refreshRunList(); await selectRun(r.body.id);
   });
   $('stop').addEventListener('click', async () => { if (state.runId && confirm('Trigger a safe stop? Running agents are cancelled and completed stages are rolled back.')) await api.stop(state.runId); });
   $('runPicker').addEventListener('change', (e) => selectRun(e.target.value));
@@ -298,12 +330,14 @@
 
   // ---------- boot ----------
   (async () => {
-    const workflows = await api.workflows();
-    $('scenario').innerHTML = workflows.map(w => `<option>${esc(w)}</option>`).join('');
+    const [presets, baselines] = await Promise.all([api.scenarios(), api.baselines()]);
+    state.presets = presets;
+    $('preset').innerHTML = '<option value="">— write your own —</option>' + presets.map(p => `<option value="${esc(p.name)}">${esc(p.name)}${p.hasRecording ? ' (recorded)' : ''}</option>`).join('');
+    $('baseline').innerHTML = baselines.map(b => `<option value="${esc(b.id)}">${esc(b.id)} — ${esc(b.description)}</option>`).join('');
     if (!localStorage.getItem('actor')) localStorage.setItem('actor', 'dashboard-user');
     await refreshRunList();
     renderSummary(null);
-    const running = (await api.runs()).find(r => r.status === 'running');
-    if (running) selectRun(running.id);
+    const running = state.runs.find(r => r.status === 'running');
+    if (running) selectRun(running.id); else if (!state.runs.length) openComposer();
   })();
 })();

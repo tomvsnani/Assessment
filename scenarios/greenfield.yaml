@@ -1,0 +1,5 @@
+# Greenfield: build the URL shortener in a workspace that holds only the standard build configuration (no code).
+name: greenfield
+workflow: sdlc
+baseline: scaffold
+requirement: requirements/greenfield.md

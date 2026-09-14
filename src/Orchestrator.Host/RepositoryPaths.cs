@@ -8,6 +8,7 @@ public sealed class RepositoryPaths
     public string Root { get; }
 
     public string Workflows => Path.Combine(Root, "workflows");
+    public string Scenarios => Path.Combine(Root, "scenarios");
     public string Prompts => Path.Combine(Root, "prompts");
     public string ClaudeMd => Path.Combine(Root, "CLAUDE.md");
     public string Recordings => Path.Combine(Root, "recordings");

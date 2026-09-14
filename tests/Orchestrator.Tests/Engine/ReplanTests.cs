@@ -13,7 +13,6 @@ public class ReplanTests
     // implement -> {verify, docs}; verify failing sends the run back to implement (at most twice).
     private const string Loop = """
         name: loop
-        requirement: r.md
         stages:
           - { id: plan, agent: planner, exit: { artifacts: [plan] } }
           - { id: implement, agent: implementer, depends_on: [plan], exit: { artifacts: [implementation] } }

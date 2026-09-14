@@ -1,11 +1,9 @@
-# Brownfield: modernize click counting on the v1 (legacy) shortener.
+# The software delivery lifecycle every run follows. Scenario presets in scenarios/ and ad-hoc
+# requirements both run this graph; what differs is the requirement text and the workspace baseline.
 # Stage graph:
 #   requirements -> design -> plan -> {implement, test-design} -> verify -> {review, docs} -> release
 # Braces are parallel branches. verify/review failing loops back to implement (bounded).
-name: brownfield
-kind: brownfield
-requirement: requirements/brownfield.md
-baseline: git:v1-legacy
+name: sdlc
 max_parallel: 3
 
 stages:
