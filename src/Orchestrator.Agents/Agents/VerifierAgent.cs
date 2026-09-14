@@ -19,6 +19,7 @@ public sealed class VerifierAgent(IRunTrace trace, Action<string> log) : IStageA
         var ct = context.CancellationToken;
         var root = context.Workspace.RootPath;
 
+        trace.ToolStarted(context.Stage.Id, Role, "dotnet build", "{}");
         var buildWatch = System.Diagnostics.Stopwatch.StartNew();
         var build = await DotnetRunner.RunAsync(root, "build --nologo -v q", TimeSpan.FromMinutes(4), ct);
         trace.ToolInvoked(context.Stage.Id, Role, "dotnet build", "{}", Preview(build.Output), !build.Succeeded, buildWatch.Elapsed);
@@ -28,6 +29,7 @@ public sealed class VerifierAgent(IRunTrace trace, Action<string> log) : IStageA
             return Fail(context, "build failed", "## Build\nFAILED\n```\n" + build.Output + "\n```");
         }
 
+        trace.ToolStarted(context.Stage.Id, Role, "dotnet test", "{}");
         var testWatch = System.Diagnostics.Stopwatch.StartNew();
         var tests = await DotnetRunner.RunAsync(root, "test --no-build --nologo -v q", TimeSpan.FromMinutes(6), ct);
         trace.ToolInvoked(context.Stage.Id, Role, "dotnet test", "{}", Preview(tests.Output), !tests.Succeeded, testWatch.Elapsed);

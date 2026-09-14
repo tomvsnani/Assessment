@@ -9,6 +9,15 @@ public sealed class EventStoreTrace(EventStore events) : IRunTrace
     /// <summary>Long model outputs are kept whole in the recordings; the event carries enough to read along.</summary>
     public const int MaxTextChars = 4000;
 
+    public void ModelCallStarted(string stageId, string agent, int iteration, int messagesInContext) =>
+        events.Append(EventKind.ModelCallStarted, stageId,
+            ("agent", agent),
+            ("iteration", iteration.ToString(CultureInfo.InvariantCulture)),
+            ("messages", messagesInContext.ToString(CultureInfo.InvariantCulture)));
+
+    public void ToolStarted(string stageId, string agent, string tool, string arguments) =>
+        events.Append(EventKind.ToolStarted, stageId, ("agent", agent), ("tool", tool), ("arguments", Clip(arguments)));
+
     public void AgentTurn(string stageId, string agent, int iteration, string text, int toolCalls, int inputTokens, int outputTokens) =>
         events.Append(EventKind.AgentTurn, stageId,
             ("agent", agent),

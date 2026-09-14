@@ -111,6 +111,15 @@ pre { background: #0b0f14; border: 1px solid var(--border); border-radius: 6px; 
 .doc td, .doc th { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .doc code { font-family: var(--mono); background: #0b0f14; padding: 1px 4px; border-radius: 3px; }
 
+
+.now { border-color: var(--accent); }
+.now-row { display: grid; grid-template-columns: 130px 110px 1fr 70px; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); align-items: center; }
+.now-row .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-row .elapsed { font-family: var(--mono); text-align: right; color: var(--accent); }
+.now-row.waiting-human .elapsed { color: var(--warn); }
+.spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 6px; vertical-align: -1px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .approval { border-color: var(--warn); background: #1f1a10; }
 .approval h2 { color: var(--warn); }
 .approval .amb { border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 8px 0; background: var(--panel); }

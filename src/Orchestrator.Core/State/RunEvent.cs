@@ -37,7 +37,9 @@ public enum EventKind
     RunCompleted,
     RunFailed,
 
-    // Agent-level trace: what a role said and which tools it used. Not audited; shown on the dashboard.
+    // Agent-level trace: what a role is doing, said, and which tools it used. Not audited; shown on the dashboard.
+    ModelCallStarted,
     AgentTurn,
+    ToolStarted,
     ToolInvoked,
 }

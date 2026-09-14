@@ -15,7 +15,7 @@
     stop: (id) => fetch(`/api/runs/${id}/stop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'dashboard' }) }),
   };
 
-  const state = { runId: null, source: null, events: [], summary: null, startedAt: null, presets: [], runs: [] };
+  const state = { runId: null, source: null, events: [], summary: null, startedAt: null, presets: [], runs: [], activity: {} };
   const LIFECYCLE = new Set(['RunStarted', 'StageScheduled', 'StageStarted', 'StageCompleted', 'StageFailed', 'StageInvalidated', 'StageAttemptFailed',
     'StageRetryScheduled', 'StageFallbackUsed', 'ArtifactProduced', 'ApprovalRequested', 'ApprovalDecided', 'ReplanTriggered',
     'CompensationRun', 'RollbackCompleted', 'SafeStopTriggered', 'RunCompleted', 'RunFailed', 'PolicyEvaluated']);
@@ -84,8 +84,8 @@
 
   async function selectRun(id) {
     if (state.source) { state.source.close(); state.source = null; }
-    state.runId = id; state.events = []; state.summary = null; state.startedAt = null;
-    updateReplayButton();
+    state.runId = id; state.events = []; state.summary = null; state.startedAt = null; state.activity = {};
+    updateReplayButton(); renderNow();
     $('timeline').innerHTML = ''; $('agents').innerHTML = ''; $('artifactList').innerHTML = ''; $('artifactView').innerHTML = '<p class="muted">Select an artifact.</p>';
     $('runPicker').value = id || '';
     if (!id) { renderSummary(null); return; }
@@ -97,6 +97,7 @@
       const evt = JSON.parse(m.data);
       state.events.push(evt);
       if (evt.kind === 'RunStarted') state.startedAt = new Date(evt.at);
+      trackActivity(evt);
       appendTimeline(evt);
       if (evt.kind === 'AgentTurn' || evt.kind === 'ToolInvoked') appendAgentTrace(evt);
       if (REFRESH_ON.has(evt.kind) && !pending) { pending = true; setTimeout(() => { pending = false; refreshSummary(); }, 250); }
@@ -112,6 +113,44 @@
     renderSummary(summary);
   }
 
+  // ---------- live activity ----------
+  // Per stage: what the agent is doing now, derived from started/finished event pairs.
+  function trackActivity(e) {
+    const a = state.activity;
+    const d = e.data;
+    switch (e.kind) {
+      case 'StageStarted': a[e.stageId] = { agent: d.agent, what: 'starting', since: e.at, kind: 'busy' }; break;
+      case 'ModelCallStarted': a[e.stageId] = { agent: d.agent, what: `calling the model — turn ${d.iteration} (${d.messages} messages in context)`, since: e.at, kind: 'busy' }; break;
+      case 'AgentTurn': a[e.stageId] = { agent: d.agent, what: d.toolCalls > 0 ? `model asked for ${d.toolCalls} tool call(s)` : 'model answered; parsing the artifact', since: e.at, kind: 'busy' }; break;
+      case 'ToolStarted': a[e.stageId] = { agent: d.agent, what: `running ${d.tool} ${d.arguments.length > 90 ? d.arguments.slice(0, 90) + '…' : d.arguments}`, since: e.at, kind: 'busy' }; break;
+      case 'ToolInvoked': a[e.stageId] = { agent: d.agent, what: `${d.tool} finished (${d.durationMs} ms); back to the model`, since: e.at, kind: 'busy' }; break;
+      case 'PolicyEvaluated': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `policy ${d.policy}: ${d.verdict}`, since: e.at, kind: 'busy' }; break;
+      case 'ApprovalRequested': a[e.stageId] = { agent: 'you', what: `waiting for a human decision: ${d.label}`, since: e.at, kind: 'human' }; break;
+      case 'ApprovalDecided': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `decision ${d.decision} recorded`, since: e.at, kind: 'busy' }; break;
+      case 'StageRetryScheduled': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `retry #${d.nextAttempt} scheduled`, since: e.at, kind: 'busy' }; break;
+      case 'StageCompleted': case 'StageFailed': case 'StageInvalidated': delete a[e.stageId]; break;
+      case 'RunCompleted': case 'RunFailed': state.activity = {}; break;
+      default: return;
+    }
+    renderNow();
+  }
+
+  function renderNow() {
+    const rows = Object.entries(state.activity);
+    const body = $('nowBody');
+    if (!rows.length) { body.innerHTML = state.summary?.status === 'running' ? '<span class="spinner"></span>scheduler is dispatching the next stage…' : 'Nothing running.'; return; }
+    body.innerHTML = rows.map(([stage, a]) => `<div class="now-row ${a.kind === 'human' ? 'waiting-human' : ''}" data-since="${a.since}">
+      <span class="stage-tag mono">${esc(stage)}</span><span class="agent-tag">${esc(a.agent)}</span>
+      <span class="what">${a.kind === 'human' ? '👤 ' : '<span class="spinner"></span>'}${esc(a.what)}</span><span class="elapsed">0s</span></div>`).join('');
+  }
+
+  setInterval(() => {
+    document.querySelectorAll('.now-row').forEach(row => {
+      const secs = Math.max(0, (Date.now() - new Date(row.dataset.since)) / 1000);
+      row.querySelector('.elapsed').textContent = secs >= 60 ? `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s` : `${Math.round(secs)}s`;
+    });
+  }, 1000);
+
   // ---------- rendering ----------
   function renderSummary(s) {
     $('runId').textContent = s ? s.id : '';
@@ -121,7 +160,7 @@
     $('title').textContent = s?.title ? s.title : '';
     $('outcome').textContent = s?.outcome || '';
     $('stop').disabled = !s || s.status !== 'running';
-    renderGraph(s); renderMetrics(s); renderArtifacts(s); renderApproval(s); renderLineage(s);
+    renderGraph(s); renderMetrics(s); renderArtifacts(s); renderApproval(s); renderLineage(s); renderNow();
   }
 
   function renderGraph(s) {
@@ -164,7 +203,8 @@
   }
 
   function appendTimeline(e) {
-    const isTrace = e.kind === 'AgentTurn' || e.kind === 'ToolInvoked';
+    const isTrace = e.kind === 'AgentTurn' || e.kind === 'ToolInvoked' || e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted';
+    if (e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted') return; // shown in the "Right now" panel instead
     if (isTrace && !$('showTrace').checked) return;
     if (e.kind === 'PolicyEvaluated' && e.data.verdict === 'Pass' && !$('showPolicyPass').checked) return;
     const d = e.data; let icon = '·', cls = '', text = '';

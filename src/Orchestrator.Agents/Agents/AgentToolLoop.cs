@@ -42,6 +42,7 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
         for (var iteration = 1; iteration <= maxIterations; iteration++)
         {
             ct.ThrowIfCancellationRequested();
+            trace.ModelCallStarted(stageId, label, iteration, messages.Count);
             var response = await CompleteWithRetryAsync(new LlmRequest(systemPrompt, [.. messages], definitions), ct);
             inputTokens += response.InputTokens;
             outputTokens += response.OutputTokens;
@@ -65,6 +66,7 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
 
         log($"{label}: iteration limit ({maxIterations}) reached; asking for the final answer");
         messages.Add(new LlmMessage.UserText("You have used your tool budget. Stop using tools and produce your final answer now."));
+        trace.ModelCallStarted(stageId, label, maxIterations + 1, messages.Count);
         var last = await CompleteWithRetryAsync(new LlmRequest(systemPrompt, [.. messages], []), ct);
         trace.AgentTurn(stageId, label, maxIterations + 1, last.Turn.Text, 0, last.InputTokens, last.OutputTokens);
         return new Outcome(last.Turn.Text, maxIterations + 1, toolCalls, inputTokens + last.InputTokens, outputTokens + last.OutputTokens, true);
@@ -73,6 +75,7 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
     private async Task<ToolResult> InvokeAsync(string stageId, string label, Dictionary<string, ITool> tools, ToolCall call, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
+        trace.ToolStarted(stageId, label, call.Name, DescribeArguments(call));
         ToolResult result;
         if (!tools.TryGetValue(call.Name, out var tool))
         {
