@@ -41,7 +41,7 @@ public sealed class PostgresLinkRepository(NpgsqlDataSource dataSource, Resilien
     public Task<Link?> FindAsync(ShortCode code, CancellationToken ct) =>
         resilience.ExecuteAsync(async token =>
         {
-            const string sql = "SELECT code, target_url, created_at, expires_at, idempotency_key FROM links WHERE code = @Code";
+            const string sql = "SELECT code AS Code, target_url AS TargetUrl, created_at AS CreatedAt, expires_at AS ExpiresAt, idempotency_key AS IdempotencyKey FROM links WHERE code = @Code";
             await using var connection = await dataSource.OpenConnectionAsync(token);
             var row = await connection.QuerySingleOrDefaultAsync<LinkRow>(
                 new CommandDefinition(sql, new { Code = code.Value }, cancellationToken: token));
@@ -51,7 +51,7 @@ public sealed class PostgresLinkRepository(NpgsqlDataSource dataSource, Resilien
     public Task<Link?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken ct) =>
         resilience.ExecuteAsync(async token =>
         {
-            const string sql = "SELECT code, target_url, created_at, expires_at, idempotency_key FROM links WHERE idempotency_key = @Key";
+            const string sql = "SELECT code AS Code, target_url AS TargetUrl, created_at AS CreatedAt, expires_at AS ExpiresAt, idempotency_key AS IdempotencyKey FROM links WHERE idempotency_key = @Key";
             await using var connection = await dataSource.OpenConnectionAsync(token);
             var row = await connection.QuerySingleOrDefaultAsync<LinkRow>(
                 new CommandDefinition(sql, new { Key = idempotencyKey }, cancellationToken: token));
@@ -70,14 +70,15 @@ public sealed class PostgresLinkRepository(NpgsqlDataSource dataSource, Resilien
     public Task<ClickStats?> GetStatsAsync(ShortCode code, CancellationToken ct) =>
         resilience.ExecuteAsync(async token =>
         {
-            const string sql = "SELECT clicks, last_clicked_at FROM links WHERE code = @Code";
+            const string sql = "SELECT clicks AS Clicks, last_clicked_at AS LastClickedAt FROM links WHERE code = @Code";
             await using var connection = await dataSource.OpenConnectionAsync(token);
             var row = await connection.QuerySingleOrDefaultAsync<StatsRow>(
                 new CommandDefinition(sql, new { Code = code.Value }, cancellationToken: token));
             return row is null ? null : new ClickStats(row.Clicks, row.LastClickedAtOffset);
         }, ct).AsTask();
 
-    // Dapper materialises into these; kept private so the column shape never leaks out of this file.
+    // Dapper materialises into these via the constructor, so SELECTs alias snake_case columns to these names.
+    // Kept private so the column shape never leaks out of this file.
     private sealed record LinkRow(string Code, string TargetUrl, DateTime CreatedAt, DateTime? ExpiresAt, string? IdempotencyKey)
     {
         public Link ToLink() => new(
