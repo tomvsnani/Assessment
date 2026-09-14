@@ -1,7 +1,7 @@
 using System.Globalization;
 using Orchestrator.Core.State;
 
-namespace Orchestrator.Cli;
+namespace Orchestrator.Host.Headless;
 
 /// <summary>Prints the event stream as it happens, one readable line per event that a human cares about.</summary>
 public sealed class ConsoleRenderer : IDisposable

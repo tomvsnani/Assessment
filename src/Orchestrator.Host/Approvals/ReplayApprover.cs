@@ -2,7 +2,7 @@ using System.Globalization;
 using Orchestrator.Core.Contracts;
 using Orchestrator.Core.Governance;
 
-namespace Orchestrator.Cli.Approvals;
+namespace Orchestrator.Host.Approvals;
 
 /// <summary>
 /// Replays the decisions a human took in the recorded interactive session, in order, matched by

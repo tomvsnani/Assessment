@@ -1,7 +1,7 @@
 using Orchestrator.Core.Contracts;
 using Orchestrator.Core.Governance;
 
-namespace Orchestrator.Cli.Approvals;
+namespace Orchestrator.Host.Approvals;
 
 /// <summary>
 /// The interactive human. Shows the artifacts under review in full, asks for each open

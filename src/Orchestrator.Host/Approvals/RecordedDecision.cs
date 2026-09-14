@@ -1,6 +1,6 @@
 using Orchestrator.Core.Contracts;
 
-namespace Orchestrator.Cli.Approvals;
+namespace Orchestrator.Host.Approvals;
 
 /// <summary>One line of <c>recordings/&lt;scenario&gt;/decisions.jsonl</c>: a human decision taken in an interactive run.</summary>
 public sealed record RecordedDecision(

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The orchestrator as a service: REST + SSE API, the dashboard, and a headless mode for CI. -->
+  <PropertyGroup>
+    <AssemblyName>sdlc</AssemblyName>
+    <RootNamespace>Orchestrator.Host</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Orchestrator.Core/Orchestrator.Core.csproj" />
+    <ProjectReference Include="../Orchestrator.Agents/Orchestrator.Agents.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Formatting.Compact" />
+  </ItemGroup>
+</Project>

@@ -1,4 +1,4 @@
-namespace Orchestrator.Cli;
+namespace Orchestrator.Host;
 
 /// <summary>Finds the repository root (the directory holding AgenticSdlc.sln) from wherever the CLI runs.</summary>
 public sealed class RepositoryPaths

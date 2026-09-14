@@ -3,7 +3,7 @@ using Orchestrator.Core.Metrics;
 using Orchestrator.Core.State;
 using Orchestrator.Core.State.Projections;
 
-namespace Orchestrator.Cli;
+namespace Orchestrator.Host.Runs;
 
 /// <summary>
 /// What a run leaves behind, and how a live run's results become the committed recording.

@@ -15,6 +15,7 @@ This file is the *how*; that file is the *proof*.
 | D6 | **Brownfield = modernization**: move click counting from a synchronous DB increment on the redirect path to outbox → Kafka → analytics consumer. | Mirrors the JD's "legacy → event-driven" bullet; forces real impact analysis. |
 | D7 | **Ambiguous = compliance**: "analytics must be retention-compliant" — regulation, retention window, what counts as PII (IP, full URL), raw vs aggregate are all unspecified. | Financial-services flavour; the agent must surface options, the human must decide. |
 | D8 | **Codebase reasoning without RAG**: Roslyn repo map (type/method signatures) + deterministic impact analysis behind an `ICodebaseIndex` seam. | Repo is ~2k lines; embeddings would be theatre. The seam shows where an index would plug in. |
+| D10 | **The orchestrator is an ASP.NET Core service** (`Orchestrator.Host`): REST + SSE API, a dashboard that shows every stage, agent turn, tool call, policy verdict and approval live, and takes human decisions in the browser. A headless mode (`sdlc run <scenario>`) keeps the one-command replay for CI and graders. | Makes controlled autonomy and observability visible instead of only auditable; same production shape as the shortener. |
 | D9 | **Runs without Docker by default** (in-memory repo/cache/bus). `docker compose --profile real up` adds Postgres, Redis, Redpanda. | Graders must get a green run in one command. |
 
 **Open — needed before Phase 4:** which provider/key to record with (assumed Anthropic; key read from env var only, never written to disk).
@@ -57,7 +58,8 @@ claudeassess/
 │   │   │                          Tester, Reviewer, DocWriter, ReleaseManager
 │   │   ├── Tools/                 ReadFile, WriteFile, Grep, RunTests, RunBuild (sandboxed to workspace/)
 │   │   └── Codebase/              RepoMap (Roslyn), ImpactAnalysis, ICodebaseIndex
-│   └── Orchestrator.Cli/          `sdlc run <scenario> [--live] [--provider x]`, interactive approvals
+│   └── Orchestrator.Host/         ASP.NET Core: Runs/ (RunService, RunRegistry), Endpoints/ (REST + SSE),
+│                                  Approvals/ (web, console, replay, unattended), Headless/ (sdlc run|graph|verify-audit), wwwroot/ dashboard
 │
 ├── workflows/                     greenfield.yaml, brownfield.yaml, ambiguous.yaml (the DAGs)
 ├── prompts/                       one .md per agent, versioned, reviewable

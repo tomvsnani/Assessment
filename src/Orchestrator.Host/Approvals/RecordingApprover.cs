@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Orchestrator.Core.Governance;
 
-namespace Orchestrator.Cli.Approvals;
+namespace Orchestrator.Host.Approvals;
 
 /// <summary>Wraps a live approver and appends every decision to decisions.jsonl so a replay can reproduce the human.</summary>
 public sealed class RecordingApprover(IApprover inner, string filePath) : IApprover

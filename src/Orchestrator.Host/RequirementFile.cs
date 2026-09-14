@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Orchestrator.Core.Contracts;
 
-namespace Orchestrator.Cli;
+namespace Orchestrator.Host;
 
 /// <summary>Reads <c>requirements/&lt;scenario&gt;.md</c>: a small YAML front matter (id, title) and the body.</summary>
 public static partial class RequirementFile

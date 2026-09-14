@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDLC Orchestrator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SDLC Orchestrator <span class="muted">agentic delivery with human gates</span></div>
+    <div class="controls">
+      <label>Run <select id="runPicker"></select></label>
+      <span class="sep"></span>
+      <label>Scenario <select id="scenario"></select></label>
+      <label><input type="checkbox" id="live"> live (calls the provider)</label>
+      <label>Approver <select id="approver">
+        <option value="">auto</option>
+        <option value="web">web (you decide here)</option>
+        <option value="replay">replay recorded decisions</option>
+        <option value="unattended">unattended (auto-approve, labelled)</option>
+      </select></label>
+      <button id="start" class="primary">Start run</button>
+      <button id="stop" class="danger" disabled>Safe stop</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main class="layout">
+    <aside class="left">
+      <section class="card">
+        <h2>Run <span id="runId" class="mono muted"></span></h2>
+        <div class="badges">
+          <span id="status" class="badge">no run</span>
+          <span id="mode" class="badge muted"></span>
+        </div>
+        <div id="outcome" class="small muted"></div>
+      </section>
+
+      <section class="card">
+        <h2>Stage graph <span class="muted small">parallel groups side by side</span></h2>
+        <div id="graph" class="graph"></div>
+        <div class="legend">
+          <span class="dot pending"></span>pending <span class="dot running"></span>running
+          <span class="dot completed"></span>completed <span class="dot failed"></span>failed
+          <span class="dot retry"></span>retried
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Reliability metrics</h2>
+        <table id="metrics" class="kv"></table>
+        <div id="fidelity" class="small muted"></div>
+      </section>
+    </aside>
+
+    <section class="center">
+      <div id="approval" class="card approval" hidden></div>
+
+      <nav class="tabs">
+        <button data-tab="timeline" class="active">Timeline</button>
+        <button data-tab="agents">Agents</button>
+        <button data-tab="artifacts">Artifacts</button>
+        <button data-tab="lineage">Lineage</button>
+        <button data-tab="audit">Audit</button>
+        <button data-tab="workflow">Workflow</button>
+      </nav>
+
+      <section id="tab-timeline" class="tab card">
+        <div class="toolbar">
+          <label><input type="checkbox" id="showTrace" checked> show agent turns and tool calls</label>
+          <label><input type="checkbox" id="showPolicyPass"> show passing policy checks</label>
+          <label><input type="checkbox" id="follow" checked> follow</label>
+        </div>
+        <ol id="timeline" class="timeline"></ol>
+      </section>
+
+      <section id="tab-agents" class="tab card" hidden>
+        <div id="agents"></div>
+      </section>
+
+      <section id="tab-artifacts" class="tab card" hidden>
+        <div class="split">
+          <ul id="artifactList" class="list"></ul>
+          <div id="artifactView" class="doc"><p class="muted">Select an artifact.</p></div>
+        </div>
+      </section>
+
+      <section id="tab-lineage" class="tab card" hidden>
+        <div id="lineage" class="doc"></div>
+      </section>
+
+      <section id="tab-audit" class="tab card" hidden>
+        <div id="audit"></div>
+      </section>
+
+      <section id="tab-workflow" class="tab card" hidden>
+        <div id="workflow" class="doc"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
