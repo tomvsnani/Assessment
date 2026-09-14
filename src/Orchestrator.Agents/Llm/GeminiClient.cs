@@ -64,15 +64,29 @@ public sealed class GeminiClient(HttpClient http, string apiKey, string model = 
             ["role"] = "user",
             ["parts"] = new JsonArray(results.Results.Select(r => (JsonNode)new JsonObject
             {
-                ["functionResponse"] = new JsonObject
-                {
-                    ["name"] = r.Name,
-                    ["response"] = new JsonObject { ["result"] = r.Content },
-                },
+                ["functionResponse"] = FunctionResponse(r),
             }).ToArray()),
         },
         _ => throw new ArgumentOutOfRangeException(nameof(message)),
     };
+
+    /// <summary>Gemini 3 assigns ids to function calls and expects them back; older models do not send one.</summary>
+    private static JsonObject FunctionResponse(ToolResult r)
+    {
+        var node = new JsonObject
+        {
+            ["name"] = r.Name,
+            ["response"] = new JsonObject { ["result"] = r.Content },
+        };
+        if (!r.CallId.StartsWith(SyntheticIdPrefix, StringComparison.Ordinal))
+        {
+            node["id"] = r.CallId;
+        }
+
+        return node;
+    }
+
+    private const string SyntheticIdPrefix = "call-";
 
     private static LlmResponse Parse(JsonElement root)
     {
@@ -93,7 +107,12 @@ public sealed class GeminiClient(HttpClient http, string apiKey, string model = 
                 else if (part.TryGetProperty("functionCall", out var call))
                 {
                     var name = call.GetProperty("name").GetString()!;
-                    calls.Add(new ToolCall($"{name}-{index++.ToString(CultureInfo.InvariantCulture)}", name, call.GetProperty("args").Clone()));
+                    var id = call.TryGetProperty("id", out var idElement) && idElement.ValueKind == JsonValueKind.String
+                        ? idElement.GetString()!
+                        : $"{SyntheticIdPrefix}{index.ToString(CultureInfo.InvariantCulture)}-{name}";
+                    index++;
+                    var args = call.TryGetProperty("args", out var a) ? a.Clone() : JsonDocument.Parse("{}").RootElement;
+                    calls.Add(new ToolCall(id, name, args));
                 }
             }
         }

@@ -94,12 +94,18 @@ public sealed class AnthropicClient(HttpClient http, string apiKey, string model
     }
 }
 
-public sealed class LlmException(string provider, int status, string body)
+public sealed partial class LlmException(string provider, int status, string body)
     : Exception($"{provider} returned HTTP {status}: {Truncate(body)}")
 {
     public int Status { get; } = status;
 
     public bool IsTransient => Status is 429 or 500 or 502 or 503 or 529;
 
+    /// <summary>Gemini puts a retryDelay ("34s") in the 429 body; other providers leave this null.</summary>
+    public TimeSpan? RetryAfter { get; } = RetryDelay().Match(body) is { Success: true } m ? TimeSpan.FromSeconds(double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)) : null;
+
     private static string Truncate(string s) => s.Length <= 500 ? s : s[..500] + "...";
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"""retryDelay""\s*:\s*""(\d+(?:\.\d+)?)s""")]
+    private static partial System.Text.RegularExpressions.Regex RetryDelay();
 }

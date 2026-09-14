@@ -1,0 +1,8 @@
+reliability metrics
+  run outcome     : failed / stopped
+  stage success   : 0/1 (0 %)
+  retries         : 1   fallbacks: 0   re-plans: 0   rollbacks: 1
+  policy blocks   : 0   human rejections: 0
+  MTTR            : n/a (nothing failed)
+  end-to-end      : 3.1 s
+    requirements              3.0 s

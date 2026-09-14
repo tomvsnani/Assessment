@@ -100,7 +100,13 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
         return result;
     }
 
-    /// <summary>Transient provider errors (429, 5xx) are retried a few times; anything else surfaces to the executor.</summary>
+    /// <summary>
+    /// Transient provider errors (429, 5xx) are retried with exponential backoff, honouring a
+    /// provider-supplied retry delay when there is one (free-tier rate limits are the common case);
+    /// anything else surfaces to the executor, whose own bounded retry then applies.
+    /// </summary>
+    private const int MaxProviderAttempts = 8;
+
     private async Task<LlmResponse> CompleteWithRetryAsync(LlmRequest request, CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)
@@ -109,15 +115,15 @@ public sealed class AgentToolLoop(ILlmClient client, IRunTrace trace, Action<str
             {
                 return await client.CompleteAsync(request, ct);
             }
-            catch (LlmException e) when (e.IsTransient && attempt < 4)
+            catch (LlmException e) when (e.IsTransient && attempt < MaxProviderAttempts)
             {
-                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 2);
-                log($"  provider {e.Status}; retrying in {delay.TotalSeconds.ToString("0", CultureInfo.InvariantCulture)}s");
+                var delay = e.RetryAfter is { } hinted ? hinted + TimeSpan.FromSeconds(1) : TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, attempt) * 2));
+                log($"  provider {e.Status}; retrying in {delay.TotalSeconds.ToString("0", CultureInfo.InvariantCulture)}s (attempt {attempt}/{MaxProviderAttempts})");
                 await Task.Delay(delay, ct);
             }
-            catch (HttpRequestException) when (attempt < 4)
+            catch (HttpRequestException) when (attempt < MaxProviderAttempts)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt) * 2), ct);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, attempt) * 2)), ct);
             }
         }
     }
