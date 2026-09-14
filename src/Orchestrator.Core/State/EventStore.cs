@@ -28,7 +28,8 @@ public sealed class EventStore : IDisposable
         if (filePath is not null)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            _writer = new StreamWriter(filePath, append: true) { AutoFlush = true };
+            // Shared read so dashboards and tail -f can follow the log while the run writes it.
+            _writer = new StreamWriter(new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
         }
     }
 

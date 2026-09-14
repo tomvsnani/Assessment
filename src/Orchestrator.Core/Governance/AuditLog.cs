@@ -32,7 +32,7 @@ public sealed class AuditLog : IDisposable
     {
         _events = events;
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-        _writer = new StreamWriter(filePath, append: true) { AutoFlush = true };
+        _writer = new StreamWriter(new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
         _events.Appended += OnEvent;
     }
 
