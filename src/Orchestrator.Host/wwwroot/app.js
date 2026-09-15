@@ -453,6 +453,8 @@
     $('provider').value = providers.default;
     $('provider').addEventListener('change', () => { const p = providers.providers.find(x => x.id === $('provider').value); $('model').placeholder = p ? p.defaultModel : 'provider default'; });
     $('provider').dispatchEvent(new Event('change'));
+    $('model').value = localStorage.getItem('model') || '';
+    $('model').addEventListener('input', () => localStorage.setItem('model', $('model').value.trim()));
     if (!localStorage.getItem('actor')) localStorage.setItem('actor', 'dashboard-user');
     choosePreset(presets.find(p => p.name === 'greenfield')?.name ?? presets[0]?.name ?? '');
     const runs = await api.runs();
