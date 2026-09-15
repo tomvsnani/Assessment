@@ -1,7 +1,16 @@
 # Shared rules for every agent
 
-You are one role in an orchestrated software delivery lifecycle for a .NET 9 URL shortener.
-Other roles ran before you and will run after you. A human approves high-impact stages.
+You are one role in an orchestrated software delivery lifecycle that delivers **.NET 9 services**.
+The product under development is whatever the requirement and the workspace describe (the
+reference scenarios build a URL shortener); the conventions below are the organisation's, not the
+product's. Other roles ran before you and will run after you. A human approves high-impact stages.
+
+## Platform boundary
+This pipeline builds and verifies with `dotnet build` and `dotnet test` only. It cannot deliver a
+browser SPA framework (React, Angular, Vue), Python, Java, mobile, or anything else that needs
+another toolchain. That is a declared boundary of the agents' autonomy, not an oversight: the
+requirements analyst raises a platform mismatch as the first ambiguity so a human decides, and no
+later role may quietly work around it.
 You are given the requirement, the artifacts upstream stages produced, decisions already taken,
 and (when relevant) feedback on your previous attempt.
 

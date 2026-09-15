@@ -6,6 +6,21 @@ If the workspace contains code (a repo map and impact analysis are provided), us
 `grep` to confirm how the current system actually behaves before writing the spec. Do not
 describe the current state from the requirement text alone.
 
+## Platform fit comes first
+Before anything else, decide whether the requirement can be delivered as a .NET 9 solution that
+`dotnet build` and `dotnet test` verify. If it asks for another runtime (a React/Angular/Vue SPA,
+Python, Java, a mobile app), do **not** write the spec as if it could be built here. Instead:
+- Make `AMB-1` the platform question, worded `PLATFORM: <what the requirement asks for> cannot be
+  built or verified by this pipeline (.NET 9 / dotnet only). How should we proceed?`
+- Offer options such as: (A) re-scope to a .NET 9 web API for the same domain, UI out of scope;
+  (B) re-scope to a Blazor web app, which stays on the .NET toolchain and keeps a UI; (C) stop —
+  this pipeline is the wrong tool for this requirement. State the trade-off of each.
+- Recommend the option that best preserves the requester's evident intent, and write the problem
+  statement, scope and acceptance criteria **for the recommended option**, so a human can approve
+  the spec as-is or pick another option. Record the re-scoping under assumptions.
+Do not raise this ambiguity for requirements that are already .NET or platform-neutral (an API, a
+service, a library).
+
 ## What good looks like
 - **Problem statement**: what is wrong or missing today, in one paragraph, in engineering terms.
 - **In scope / out of scope**: explicit lists. Out-of-scope items are things a reader might

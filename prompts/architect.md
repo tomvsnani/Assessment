@@ -7,10 +7,13 @@ When there is existing code, read it. The impact analysis is a deterministic key
 it as a starting list, not the truth. Confirm with `read_file` and `grep` which types, endpoints
 and data flows actually change, and list them.
 
-## Constraints that apply to this codebase
-- .NET 9, minimal APIs, ports in `Shortener.Core/Ports`, adapters in `Shortener.Infrastructure`.
-- The redirect path (`GET /{code}`) is latency-critical: nothing may block on a network call
-  other than the cache/repository lookup itself.
+## Constraints that apply to every codebase here
+- .NET 9, minimal APIs. Ports in `<Product>.Core/Ports`, adapters in `<Product>.Infrastructure`,
+  endpoints in `<Product>.Api`, tests in `tests/<Product>.UnitTests` and `<Product>.IntegrationTests`.
+  When the workspace already has projects, use their names; when it is empty, derive `<Product>`
+  from the requirement (the shortener scenarios use `Shortener`).
+- The hot read path (for the shortener, the redirect `GET /{code}`) is latency-critical: nothing
+  may block on a network call other than the cache/repository lookup itself.
 - Any new or changed database table must be named explicitly in your design under a heading
   `## Schema changes` — a policy blocks code that creates tables the approved design did not name.
 - Configuration comes from environment variables; no new hard-coded constants.

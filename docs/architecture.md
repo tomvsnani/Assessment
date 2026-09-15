@@ -77,15 +77,19 @@ or SafeStop                        every step appends to EventStore
 ```
 
 Non-linear paths that actually occur:
-- **verify fails → implement re-runs** with the test output as feedback (`on_failure: rerun_from: implement, max_loops: 2`). Everything downstream of `implement` (docs, test-plan consumers) is invalidated and compensated first.
-- **reviewer requests changes → implement re-runs** once (`max_loops: 1`).
+- **verify fails → implement re-runs** with the test output as feedback (`on_failure: rerun_from: implement, max_loops: 2, mode: fix`). Everything downstream of `implement` (docs, test-plan consumers) is invalidated and compensated first. The implementer's own files are **kept**: it re-runs seeing the code the compiler errors point at and is asked for the smallest change. Its compensation stays registered, so a later safe-stop still unwinds every attempt.
+- **reviewer requests changes → implement re-runs** once (`max_loops: 1, mode: fix`), same rule.
+- **`mode: rollback`** on a loop restores the earlier stage's checkpoint instead, so it starts over with only the feedback. Right when the earlier work is unusable, wrong when it is merely incomplete; it is not the default.
 - **human sends a spec/design back** → same stage re-runs with the note as feedback; downstream stages have not started, so nothing to invalidate.
 - **policy blocks an exit gate** → the stage retries with the block reason as feedback, inside its retry budget.
-- **an artifact is re-produced with a different hash** while stages that consumed it are already complete → `Coordinator.ReactToArtifactsAsync` invalidates them.
+- **an artifact is re-produced with a different hash** while stages that consumed it are already complete → `Coordinator.ReactToArtifactsAsync` invalidates them. This path always restores: work built on a stale input is not worth keeping, unlike work that merely failed a test.
+
+The escalation ladder for a failing implementation is therefore: retry inside the stage (transient or malformed output) → fix loop with feedback, files kept (a verdict) → loop budget exhausted → safe-stop, full saga rollback → human. Each rung is bounded in the workflow file; none is chosen by an agent.
 
 ### Governance
 | Mechanism | Where | What it enforces |
 |---|---|---|
+| Platform boundary | `prompts/_shared.md`, `prompts/requirements.md` | The pipeline delivers .NET 9 solutions only. A requirement needing another toolchain becomes `AMB-1 PLATFORM:` with re-scope/stop options and halts at `approve-spec`, instead of failing at `verify` after five stages of work. |
 | Approval gates | `workflows/sdlc.yaml` `approval:` + `ApprovalGate` | Humans sign off the spec, the design and the release. Decisions get ids and are cited downstream. |
 | `no-secrets` | `Governance/Policies/NoSecretsPolicy.cs` | No credential-shaped strings in artifacts or changed files. |
 | `pii-in-logs` | `PiiInLogsPolicy.cs` | No log statement interpolates a full URL, IP or user agent. |

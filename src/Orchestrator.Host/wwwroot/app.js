@@ -104,7 +104,7 @@
       </button>`).join('') + `
       <button class="scenario ${selected === '' ? 'active' : ''}" data-name="">
         <div class="scenario-name">write your own</div>
-        <div class="muted small">Any requirement, against any starting code. Runs live and is recorded under its own id.</div>
+        <div class="muted small">Any .NET 9 requirement, against any starting code. Anything needing another toolchain stops at the spec gate for your decision. Runs live and is recorded under its own id.</div>
         <div class="scenario-meta small muted">edit the box below</div>
       </button>`;
     $('scenarioCards').querySelectorAll('.scenario').forEach(b => b.addEventListener('click', () => choosePreset(b.dataset.name)));
@@ -324,12 +324,12 @@
       case 'StageRetryScheduled': icon = '↻'; cls = 'k-warn'; text = `retry #${d.nextAttempt} in ${d.delayMs} ms`; break;
       case 'StageFallbackUsed': icon = '↷'; cls = 'k-warn'; text = `falling back from ${d.from} to ${d.to}`; break;
       case 'StageFailed': icon = '■'; cls = 'k-fail'; text = `FAILED: ${esc(d.reason)}`; break;
-      case 'StageInvalidated': icon = '⟲'; cls = 'k-warn'; text = `invalidated (because of ${esc(d.because)})`; break;
+      case 'StageInvalidated': icon = '⟲'; cls = 'k-warn'; text = `invalidated (because of ${esc(d.because)}${d.workspace ? '; workspace ' + esc(d.workspace) : ''})`; break;
       case 'ArtifactProduced': icon = '📄'; text = `artifact <b>${esc(d.name)}</b> <span class="mono muted">${d.hash}</span>${d.derivedFrom ? ' ← ' + esc(d.derivedFrom) : ''}`; break;
       case 'PolicyEvaluated': icon = '🛡'; cls = d.verdict === 'Block' ? 'k-block' : (d.verdict === 'Warn' ? 'k-warn' : 'k-ok'); text = `policy ${d.policy} [${d.phase}] ${d.verdict.toUpperCase()}${d.verdict !== 'Pass' ? ': ' + esc(d.reason) : ''}`; break;
       case 'ApprovalRequested': icon = '👤'; cls = 'k-warn'; text = `approval requested: <b>${d.label}</b> (${d.openAmbiguities} open ambiguities) — waiting for a human`; break;
       case 'ApprovalDecided': icon = '👤'; cls = d.decision === 'Approved' || d.decision === 'OptionChosen' ? 'k-ok' : 'k-fail'; text = `${d.decisionId} <b>${d.decision}</b> by ${esc(d.actor)} — ${esc(d.rationale)}`; break;
-      case 'ReplanTriggered': icon = '⇄'; cls = 'k-warn'; text = `re-plan ${d.accepted === 'true' ? 'accepted' : 'refused'}: ${esc(d.cause)}${d.rerunFrom ? ' → rerun from ' + d.rerunFrom + ' (' + d.loop + ')' : ''}; invalidated [${esc(d.invalidated)}]`; break;
+      case 'ReplanTriggered': icon = '⇄'; cls = 'k-warn'; text = `re-plan ${d.accepted === 'true' ? 'accepted' : 'refused'}: ${esc(d.cause)}${d.rerunFrom ? ' → rerun from ' + d.rerunFrom + ' (' + d.loop + (d.mode ? ', ' + d.mode : '') + ')' : ''}; invalidated [${esc(d.invalidated)}]`; break;
       case 'CompensationRun': icon = '↩'; text = `compensated: ${d.outcome}`; break;
       case 'RollbackCompleted': icon = '⏪'; cls = 'k-fail'; text = `rollback completed (${d.stagesUndone} stage(s)): ${esc(d.reason)}`; break;
       case 'SafeStopTriggered': icon = '⛔'; cls = 'k-fail'; text = `safe stop: ${esc(d.reason)}`; break;
@@ -430,7 +430,7 @@
     $('workflow').innerHTML = `<h1>${esc(w.name)} <span class="muted small">max parallel ${w.maxParallelStages}</span></h1>
       <p class="muted small">Every run, preset or ad hoc, follows this graph. It is defined in <code>workflows/${esc(w.name)}.yaml</code>.</p>
       <h2>Stages</h2><table><tr><th>stage</th><th>agent</th><th>depends on</th><th>entry gate</th><th>exit gate</th><th>retry / fallback</th><th>on failure</th></tr>
-      ${w.stages.map(s => `<tr><td><b>${esc(s.id)}</b></td><td>${esc(s.agent)}</td><td>${esc(s.dependsOn.join(', '))}</td><td>${gate(s.entry)}</td><td>${gate(s.exit)}</td><td>${s.retry.maxAttempts} attempt(s)${s.fallbackAgent ? ', fallback ' + esc(s.fallbackAgent) : ''}</td><td>${s.onFailure.rerunFrom ? 'rerun from ' + esc(s.onFailure.rerunFrom) + ' ×' + s.onFailure.maxLoops : 'stop run'}</td></tr>`).join('')}</table><h2>YAML</h2><pre>${esc(w.yaml)}</pre>`;
+      ${w.stages.map(s => `<tr><td><b>${esc(s.id)}</b></td><td>${esc(s.agent)}</td><td>${esc(s.dependsOn.join(', '))}</td><td>${gate(s.entry)}</td><td>${gate(s.exit)}</td><td>${s.retry.maxAttempts} attempt(s)${s.fallbackAgent ? ', fallback ' + esc(s.fallbackAgent) : ''}</td><td>${s.onFailure.rerunFrom ? 'rerun from ' + esc(s.onFailure.rerunFrom) + ' ×' + s.onFailure.maxLoops + ' (' + esc(s.onFailure.mode) + ')' : 'stop run'}</td></tr>`).join('')}</table><h2>YAML</h2><pre>${esc(w.yaml)}</pre>`;
     function gate(g) { return [g.requiredArtifacts.length ? 'artifacts: ' + esc(g.requiredArtifacts.join(', ')) : '', g.policies.length ? 'policies: ' + esc(g.policies.join(', ')) : '', g.approval ? '<b>👤 ' + esc(g.approval) + '</b>' : ''].filter(Boolean).join('<br>') || '<span class="muted">open</span>'; }
   }
 

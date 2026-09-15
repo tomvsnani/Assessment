@@ -14,7 +14,7 @@ requirements to code and evidence. Read both before changing anything structural
 - One folder per concern. Do not add a `Helpers/` or `Utils/` folder; name the concern.
 - `Program.cs` only wires services; behaviour lives in named classes.
 - Records for data, classes for behaviour. No mutable public setters on domain types.
-- Ports (interfaces) live in `Shortener.Core/Ports`. Core has zero package references.
+- Ports (interfaces) live in `<Product>.Core/Ports` (`Shortener.Core/Ports` here). Core has zero package references.
 - Every public behaviour has a test in the matching `tests/*Tests` project, named `Given_When_Then` style.
 - Structured logging only (`logger.LogInformation("Created {Code}", code)`), never string interpolation.
 - Configuration comes from environment variables / `appsettings.json`, never from code constants.
