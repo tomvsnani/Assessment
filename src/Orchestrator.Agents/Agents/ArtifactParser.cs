@@ -25,11 +25,12 @@ public static partial class ArtifactParser
             : throw new AgentOutputException($"Final message did not contain <artifact name=\"{name}\">.");
 
     /// <summary>
-    /// Format drift seen live: a model answers with the complete artifact as a single ```json fence,
-    /// or as bare JSON, and no &lt;artifact&gt; wrapper — twice in a row, ignoring the retry feedback.
-    /// Every role here owns exactly one artifact, so when the tags are absent and the message is
-    /// unambiguously one document, that document is the artifact. Returns null when the message is
-    /// prose, empty, or holds more than one fenced block; the caller then fails the attempt as before.
+    /// Format drift seen live: a model answers with the complete artifact — a single ```json fence,
+    /// bare JSON, or a markdown report starting at its first heading — and no &lt;artifact&gt; wrapper,
+    /// sometimes twice in a row, ignoring the retry feedback. Every role here owns exactly one
+    /// artifact, so when the tags are absent and the message is unambiguously one document, that
+    /// document is the artifact. Returns null when the message is prose, empty, or holds more than
+    /// one fenced block; the caller then fails the attempt as before.
     /// </summary>
     public static string? RecoverSingle(string text)
     {
@@ -45,7 +46,13 @@ public static partial class ArtifactParser
             return fences[0].Groups["inner"].Value.Trim();
         }
 
-        if (fences.Count == 0 && ((trimmed[0] == '{' && trimmed[^1] == '}') || (trimmed[0] == '[' && trimmed[^1] == ']')))
+        if (fences.Count > 1)
+        {
+            // A markdown report may legitimately contain several code samples; it is one document if it opens with a heading.
+            return trimmed[0] == '#' ? trimmed : null;
+        }
+
+        if ((trimmed[0] == '{' && trimmed[^1] == '}') || (trimmed[0] == '[' && trimmed[^1] == ']') || trimmed[0] == '#')
         {
             return trimmed;
         }

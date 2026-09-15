@@ -56,8 +56,11 @@ Honest list. Each entry says what was chosen, what it costs, and what would chan
 
 ## Known limitations of this submission
 
-- Recordings exist only for the scenarios that completed a live run; the walkthroughs say which
-  model produced each and how exact the replay is.
+The full, dated list is in [engineering-summary.md §7](engineering-summary.md#7-limitations--stated-not-hidden). In short:
+
+- Recordings exist only for the scenarios that completed a live run; the
+  [walkthroughs](scenarios/README.md) say which have one, which model produced it and how exact
+  the replay is.
 - The orchestrator has no persistence beyond the run directory; restarting the host loses
   in-flight runs (their logs remain and are inspectable).
 - The dashboard is functional, not designed: vanilla JS, no framework, no tests.

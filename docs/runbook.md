@@ -4,7 +4,8 @@
 
 ```bash
 dotnet run --project src/Orchestrator.Host            # dashboard + API on http://localhost:5100
-dotnet run --project src/Orchestrator.Host -- run brownfield   # headless replay, exit code 0/1
+dotnet run --project src/Orchestrator.Host -- run greenfield   # headless replay, exit code 0/1
+dotnet run --project src/Orchestrator.Host -- graph            # print the stage graph and gates
 ```
 
 Configuration is environment only:
@@ -36,7 +37,8 @@ Configuration is environment only:
 | `No recording left for '<role>' … input drifted` during replay | Prompts or baseline changed since the recording | Re-record with a live run. The fidelity counter shows how much was replayed by sequence. |
 | Stage stuck at "waiting for a human decision" | An approval gate is open | Decide in the dashboard; nothing proceeds until then. Safe stop aborts and rolls back. |
 | Dashboard blank | `GET /api/runs` failing | Check the host log for the failing run directory; delete it under `runs/` if corrupt. |
-| `dotnet build` fails while the host runs | The host locks its DLLs | Stop the host (`taskkill /IM sdlc.exe /F` on Windows) before rebuilding. |
+| `dotnet build` fails while the host runs | The host locks its DLLs | Stop the host (Ctrl+C, or `taskkill /IM sdlc.exe /F` on Windows) before rebuilding; `dotnet run` without `--no-build` rebuilds on start. |
+| Run fails at a stage with `Final message did not contain <artifact …>` twice | The model answered with prose or several documents and no wrapper | A single fenced/JSON document is recovered automatically; otherwise re-run, or switch model. The retry feedback shows the model the exact wrapper. |
 
 ## Stopping and rolling back
 

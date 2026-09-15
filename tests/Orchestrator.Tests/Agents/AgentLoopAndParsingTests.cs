@@ -111,9 +111,19 @@ public class AgentLoopAndParsingTests
         ArtifactParser.RecoverSingle("[{\"key\": \"WI-1\"}]").Should().Be("[{\"key\": \"WI-1\"}]");
     }
 
+    // Seen live (greenfield-20260915-163443): the implementer's whole report, "## Summary … ## Work items …", no tag.
+    [Fact]
+    public void Given_message_that_is_a_markdown_report_When_recovered_Then_the_whole_report_is_the_artifact()
+    {
+        const string report = "## Summary\nBuilt it.\n\n## Work items\n- WI-1: done, see\n```csharp\nvar x = 1;\n```\n- WI-2: done\n```csharp\nvar y = 2;\n```\n\n## Test run\nPassed 26";
+
+        ArtifactParser.RecoverSingle(report + "\n").Should().Be(report, "a report that opens with a heading is one document even when it quotes several code samples");
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("I could not produce the spec because the requirement is empty.")]
+    [InlineData("Here is the spec you asked for:\n\n## Summary\nprose before the heading means commentary, not a document")]
     [InlineData("First:\n```json\n{}\n```\nSecond:\n```json\n[]\n```")]
     public void Given_prose_empty_or_ambiguous_message_When_recovered_Then_nothing_is_recovered(string text)
     {
