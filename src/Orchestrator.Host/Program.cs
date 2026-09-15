@@ -39,7 +39,11 @@ if (args.Length > 0)
 }
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    // The dashboard changes often during development; make browsers revalidate on every load.
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate",
+});
 app.MapHealthChecks("/health/live");
 app.MapWorkflows();
 app.MapRuns();
