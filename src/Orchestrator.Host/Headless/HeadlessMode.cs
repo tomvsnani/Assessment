@@ -92,7 +92,7 @@ public static class HeadlessMode
             Console.WriteLine($"{stage.Id}: agent={stage.Agent} depends_on=[{string.Join(", ", stage.DependsOn)}] " +
                               $"entry={Describe(stage.Entry)} exit={Describe(stage.Exit)} retry={stage.Retry.MaxAttempts}" +
                               (stage.FallbackAgent is { } f ? $" fallback={f}" : string.Empty) +
-                              (stage.OnFailure.RerunFrom is { } r ? $" on_failure=rerun-from:{r}x{stage.OnFailure.MaxLoops}" : string.Empty));
+                              (stage.OnFailure.RerunFrom is { } r ? $" on_failure=rerun-from:{r}x{stage.OnFailure.MaxLoops}:{stage.OnFailure.Mode.ToString().ToLowerInvariant()}" : string.Empty));
         }
 
         return 0;

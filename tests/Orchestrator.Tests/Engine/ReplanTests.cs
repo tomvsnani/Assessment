@@ -55,8 +55,95 @@ public class ReplanTests
         replan["loop"].Should().Be("1/2");
         replan["invalidated"].Split(',').Should().Contain("implement");
         run.EventsOfKind(EventKind.StageInvalidated).Select(e => e.StageId).Should().Contain("implement");
-        run.EventsOfKind(EventKind.CompensationRun).Should().NotBeEmpty("invalidated stages are compensated");
+        run.EventsOfKind(EventKind.CompensationRun).Select(e => e.StageId).Should().Contain("docs", "stages built on the invalidated implementation are compensated")
+            .And.NotContain("implement", "in fix mode the implementer keeps its files");
         ReliabilityMetrics.From(run.Events.All).Replans.Should().Be(1);
+    }
+
+    private const string ModeLoop = """
+        name: loop
+        stages:
+          - { id: implement, agent: implementer, exit: { artifacts: [implementation] } }
+          - { id: verify, agent: verifier, depends_on: [implement], on_failure: { rerun_from: implement, max_loops: 1, mode: MODE } }
+        """;
+
+    /// <summary>Implementer writes one file per attempt; the verifier fails the first attempt. Returns the files each attempt saw on entry.</summary>
+    private static async Task<(RunOutcome Outcome, List<IReadOnlyList<string>> FilesSeen, TestRun Run)> RunModeLoopAsync(string mode)
+    {
+        var filesSeen = new List<IReadOnlyList<string>>();
+        var attempts = 0;
+        var agents = new FakeAgents()
+            .Add("implementer", async ctx =>
+            {
+                attempts++;
+                filesSeen.Add(ctx.Workspace.ListFiles());
+                await ctx.Workspace.WriteFileAsync($"src/Attempt{attempts}.cs", "class C {}", ctx.CancellationToken);
+                return StageResult.Success(new Artifact("implementation", ArtifactKind.Code, $"v{attempts}", ctx.Stage.Id, []));
+            })
+            .Add("verifier", ctx => Task.FromResult(ctx.Require("implementation").Content == "v1"
+                ? StageResult.Failure("build failed", new Artifact("feedback", ArtifactKind.Feedback, "error CS1002 in src/Attempt1.cs", ctx.Stage.Id, []))
+                : StageResult.Success()));
+        var run = new TestRun(ModeLoop.Replace("MODE", mode, StringComparison.Ordinal), agents);
+        var outcome = await run.RunAsync();
+        return (outcome, filesSeen, run);
+    }
+
+    [Fact]
+    public async Task Given_fix_mode_When_verify_fails_Then_implement_reruns_with_its_previous_files_still_present()
+    {
+        var (outcome, filesSeen, run) = await RunModeLoopAsync("fix");
+        using (run)
+        {
+            outcome.Succeeded.Should().BeTrue();
+            filesSeen.Should().HaveCount(2);
+            filesSeen[0].Should().BeEmpty();
+            filesSeen[1].Should().ContainSingle().Which.Should().Be("src/Attempt1.cs", "the failing attempt is kept so the feedback refers to code the implementer can read");
+            run.Workspace.Files.Keys.Should().BeEquivalentTo("src/Attempt1.cs", "src/Attempt2.cs");
+
+            var invalidated = run.EventsOfKind(EventKind.StageInvalidated).Single(e => e.StageId == "implement");
+            invalidated["workspace"].Should().Be("kept");
+            run.EventsOfKind(EventKind.ReplanTriggered).Single()["mode"].Should().Be("fix");
+            run.EventsOfKind(EventKind.CompensationRun).Should().BeEmpty("nothing was undone");
+        }
+    }
+
+    [Fact]
+    public async Task Given_rollback_mode_When_verify_fails_Then_implement_reruns_from_a_clean_checkpoint()
+    {
+        var (outcome, filesSeen, run) = await RunModeLoopAsync("rollback");
+        using (run)
+        {
+            outcome.Succeeded.Should().BeTrue();
+            filesSeen.Should().HaveCount(2);
+            filesSeen[1].Should().BeEmpty("rollback mode restores the checkpoint taken before implement ran");
+            run.Workspace.Files.Keys.Should().BeEquivalentTo("src/Attempt2.cs");
+
+            run.EventsOfKind(EventKind.StageInvalidated).Single(e => e.StageId == "implement")["workspace"].Should().Be("restored");
+            run.EventsOfKind(EventKind.CompensationRun).Select(e => e.StageId).Should().Equal("implement");
+        }
+    }
+
+    [Fact]
+    public async Task Given_fix_mode_When_loop_budget_is_exhausted_Then_safe_stop_rollback_still_unwinds_every_attempt()
+    {
+        // The kept saga step is what makes this work: fix mode defers the compensation, it does not forget it.
+        var attempts = 0;
+        var agents = new FakeAgents()
+            .Add("implementer", async ctx =>
+            {
+                attempts++;
+                await ctx.Workspace.WriteFileAsync($"src/Attempt{attempts}.cs", "class C {}", ctx.CancellationToken);
+                return StageResult.Success(new Artifact("implementation", ArtifactKind.Code, $"v{attempts}", ctx.Stage.Id, []));
+            })
+            .Add("verifier", _ => Task.FromResult(StageResult.Failure("still failing")));
+        using var run = new TestRun(ModeLoop.Replace("MODE", "fix", StringComparison.Ordinal), agents);
+
+        var outcome = await run.RunAsync();
+
+        outcome.Succeeded.Should().BeFalse();
+        attempts.Should().Be(2, "initial + 1 loop");
+        run.Workspace.Files.Should().BeEmpty("the run failed, so nothing the agents wrote may remain");
+        run.EventsOfKind(EventKind.RollbackCompleted).Single()["stagesUndone"].Should().Be("2", "one compensation per completed implement attempt");
     }
 
     [Fact]

@@ -3,6 +3,9 @@
 # Stage graph:
 #   requirements -> design -> plan -> {implement, test-design} -> verify -> {review, docs} -> release
 # Braces are parallel branches. verify/review failing loops back to implement (bounded).
+# on_failure.mode: fix (default) keeps the implementer's files so it makes the smallest change
+# with the failure in front of it; rollback restores its checkpoint and starts over. Rollback is
+# what happens on safe-stop anyway, so fix → exhausted budget → rollback → human is the ladder.
 name: sdlc
 max_parallel: 3
 
@@ -54,6 +57,7 @@ stages:
     on_failure:
       rerun_from: implement
       max_loops: 2
+      mode: fix
 
   - id: review
     agent: reviewer
@@ -66,6 +70,7 @@ stages:
     on_failure:
       rerun_from: implement
       max_loops: 1
+      mode: fix
 
   - id: docs
     agent: doc-writer

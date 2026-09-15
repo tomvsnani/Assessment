@@ -46,8 +46,15 @@ public static class WorkflowLoader
             s.Fallback,
             s.OnFailure is null
                 ? FailureHandling.StopRun
-                : new FailureHandling(s.OnFailure.RerunFrom, Math.Max(0, s.OnFailure.MaxLoops)));
+                : new FailureHandling(s.OnFailure.RerunFrom, Math.Max(0, s.OnFailure.MaxLoops), ToRerunMode(s.OnFailure.Mode)));
     }
+
+    private static RerunMode ToRerunMode(string? mode) => mode?.Trim().ToLowerInvariant() switch
+    {
+        null or "" or "fix" => RerunMode.Fix,
+        "rollback" => RerunMode.Rollback,
+        _ => throw new WorkflowValidationException($"on_failure.mode must be 'fix' or 'rollback', not '{mode}'."),
+    };
 
     private static GateDefinition ToGate(GateDto? g) =>
         g is null ? GateDefinition.Open : new GateDefinition(g.Artifacts ?? [], g.Policies ?? [], g.Approval);
@@ -89,5 +96,6 @@ public static class WorkflowLoader
     {
         public string? RerunFrom { get; set; }
         public int MaxLoops { get; set; }
+        public string? Mode { get; set; }
     }
 }

@@ -14,8 +14,12 @@ namespace Orchestrator.Core.Engine;
 /// stages consumed (e.g. a re-run requirements stage changed the spec): those downstream stages
 /// are invalidated so nothing is built on a stale input.</item>
 /// </list>
-/// Invalidation compensates the affected stages (workspace restored, artifacts dropped) and
-/// records exactly what was invalidated and why.
+/// Invalidation drops the affected stages' artifacts and records exactly what was invalidated and
+/// why. Whether their workspace changes are also undone depends on the trigger: a stale input
+/// always restores (nothing built on it is worth keeping); a verdict restores only when the loop
+/// says <c>mode: rollback</c>. In the default <c>fix</c> mode the re-run stage keeps its files and is
+/// asked for the smallest change, and its compensation stays registered so a later safe-stop still
+/// unwinds everything. Rollback is the last rung of the ladder, not the first response.
 /// </summary>
 public sealed class Coordinator(DependencyGraph graph, RunState state, Saga saga, EventStore events)
 {
@@ -45,7 +49,8 @@ public sealed class Coordinator(DependencyGraph graph, RunState state, Saga saga
 
         var loop = state.IncrementLoop(loopKey);
         var earlier = state.Artifact(Executor.FeedbackArtifact); // read before invalidation drops it
-        var invalidated = await InvalidateAsync(handling.RerunFrom, includeSelf: true, ct);
+        var keepWorkspaceOf = handling.Mode == RerunMode.Fix ? handling.RerunFrom : null;
+        var invalidated = await InvalidateAsync(handling.RerunFrom, includeSelf: true, keepWorkspaceOf, ct);
         foreach (var artifact in feedback)
         {
             state.AddArtifact(Accumulate(earlier, artifact with { Name = Executor.FeedbackArtifact, ProducedBy = failedStage.Id }));
@@ -53,6 +58,7 @@ public sealed class Coordinator(DependencyGraph graph, RunState state, Saga saga
 
         events.Append(EventKind.ReplanTriggered, failedStage.Id,
             ("cause", reason), ("rerunFrom", handling.RerunFrom), ("loop", $"{loop}/{handling.MaxLoops}"),
+            ("mode", handling.Mode.ToString().ToLowerInvariant()),
             ("invalidated", string.Join(",", invalidated)), ("accepted", "true"));
         return true;
     }
@@ -82,7 +88,7 @@ public sealed class Coordinator(DependencyGraph graph, RunState state, Saga saga
         var invalidated = new List<string>();
         foreach (var stageId in stale)
         {
-            invalidated.AddRange(await InvalidateAsync(stageId, includeSelf: true, ct));
+            invalidated.AddRange(await InvalidateAsync(stageId, includeSelf: true, keepWorkspaceOf: null, ct));
         }
 
         invalidated = invalidated.Distinct(StringComparer.Ordinal).ToList();
@@ -107,7 +113,8 @@ public sealed class Coordinator(DependencyGraph graph, RunState state, Saga saga
         return latest with { Content = combined };
     }
 
-    private async Task<IReadOnlyList<string>> InvalidateAsync(string stageId, bool includeSelf, CancellationToken ct)
+    /// <param name="keepWorkspaceOf">Stage whose files survive invalidation (fix mode); its saga step is kept for a later rollback.</param>
+    private async Task<IReadOnlyList<string>> InvalidateAsync(string stageId, bool includeSelf, string? keepWorkspaceOf, CancellationToken ct)
     {
         var targets = graph.Downstream(stageId).ToList();
         if (includeSelf)
@@ -125,9 +132,14 @@ public sealed class Coordinator(DependencyGraph graph, RunState state, Saga saga
                 continue;
             }
 
-            await saga.CompensateAsync(id, ct);
+            var keepWorkspace = string.Equals(id, keepWorkspaceOf, StringComparison.Ordinal);
+            if (!keepWorkspace)
+            {
+                await saga.CompensateAsync(id, ct);
+            }
+
             state.Invalidate(id);
-            events.Append(EventKind.StageInvalidated, id, ("because", stageId));
+            events.Append(EventKind.StageInvalidated, id, ("because", stageId), ("workspace", keepWorkspace ? "kept" : "restored"));
             invalidated.Add(id);
         }
 

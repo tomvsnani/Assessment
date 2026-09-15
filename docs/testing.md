@@ -26,6 +26,7 @@ when run, then these events happened".
 | Safe stop while a human approval is pending ends cleanly | `SafeStopDuringApprovalTests` |
 | Re-planning: verify fails then implement re-runs with test output; docs rebuilt; loop budget respected | `ReplanTests` (2) |
 | Invalidation when an upstream artifact changes under completed stages | `ReplanTests…coordinator_invalidates_them` |
+| Fix-mode loop keeps the implementer's files; rollback-mode restores them; exhausted fix loops still unwind on safe-stop | `ReplanTests…previous_files_still_present`, `…from_a_clean_checkpoint`, `…still_unwinds_every_attempt` |
 | Four policies: block/pass cases, placeholders not flagged | `PolicyTests` (21) |
 | Audit hash chain verifies and detects tampering | `AuditLogTests` |
 | Event log round-trips; projections rebuild status and lineage | `EventStoreTests` |

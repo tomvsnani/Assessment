@@ -62,7 +62,7 @@ public static class WorkflowEndpoints
                     Exit = new { s.Exit.RequiredArtifacts, s.Exit.Policies, s.Exit.Approval },
                     Retry = new { s.Retry.MaxAttempts, BaseDelaySeconds = s.Retry.BaseDelay.TotalSeconds },
                     s.FallbackAgent,
-                    OnFailure = new { s.OnFailure.RerunFrom, s.OnFailure.MaxLoops },
+                    OnFailure = new { s.OnFailure.RerunFrom, s.OnFailure.MaxLoops, Mode = s.OnFailure.Mode.ToString().ToLowerInvariant() },
                 }),
                 Yaml = File.ReadAllText(file),
             });

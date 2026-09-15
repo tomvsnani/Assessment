@@ -78,7 +78,7 @@ public sealed class Scheduler(
                 case StageExecution.Completed completed when stale.Remove(completed.StageId):
                     state.MarkFailed(completed.StageId);
                     await saga.CompensateAsync(completed.StageId, safeStop.Token);
-                    events.Append(EventKind.StageInvalidated, completed.StageId, ("because", "inputs changed while running"));
+                    events.Append(EventKind.StageInvalidated, completed.StageId, ("because", "inputs changed while running"), ("workspace", "restored"));
                     break;
 
                 case StageExecution.Completed completed:

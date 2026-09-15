@@ -22,7 +22,8 @@ public sealed record StageDefinition(
 
 /// <param name="RerunFrom">Stage to invalidate and re-run with this stage's failure as feedback.</param>
 /// <param name="MaxLoops">How many times the loop may happen before the run is stopped.</param>
-public sealed record FailureHandling(string? RerunFrom, int MaxLoops)
+/// <param name="Mode">Whether the re-run stage keeps its files (fix) or starts from its checkpoint (rollback).</param>
+public sealed record FailureHandling(string? RerunFrom, int MaxLoops, RerunMode Mode = RerunMode.Fix)
 {
     public static readonly FailureHandling StopRun = new(null, 0);
 }

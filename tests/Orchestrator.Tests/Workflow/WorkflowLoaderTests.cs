@@ -59,8 +59,34 @@ public class WorkflowLoaderTests
         implement.FallbackAgent.Should().Be("implementer-conservative");
         implement.IsHighImpact.Should().BeFalse();
 
-        verify.OnFailure.Should().Be(new FailureHandling("implement", 2));
+        verify.OnFailure.Should().Be(new FailureHandling("implement", 2, RerunMode.Fix), "fix is the default: rollback is the last rung, not the first");
         verify.Retry.Should().Be(RetryDefinition.None);
+    }
+
+    [Fact]
+    public void Given_on_failure_mode_rollback_When_parsed_Then_mode_is_mapped()
+    {
+        var workflow = WorkflowLoader.Parse("""
+            name: x
+            stages:
+              - { id: a, agent: x }
+              - { id: b, agent: x, depends_on: [a], on_failure: { rerun_from: a, max_loops: 1, mode: rollback } }
+            """);
+
+        workflow.Stages[1].OnFailure.Should().Be(new FailureHandling("a", 1, RerunMode.Rollback));
+    }
+
+    [Fact]
+    public void Given_unknown_on_failure_mode_When_parsed_Then_throws()
+    {
+        var act = () => WorkflowLoader.Parse("""
+            name: x
+            stages:
+              - { id: a, agent: x }
+              - { id: b, agent: x, depends_on: [a], on_failure: { rerun_from: a, max_loops: 1, mode: retry } }
+            """);
+
+        act.Should().Throw<WorkflowValidationException>().WithMessage("*fix*rollback*retry*");
     }
 
     [Fact]
