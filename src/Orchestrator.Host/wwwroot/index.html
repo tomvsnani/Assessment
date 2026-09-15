@@ -29,6 +29,8 @@
       <h2>2 · The requirement</h2>
       <div class="editor">
         <label>Title <input type="text" id="reqTitle" placeholder="short title"></label>
+        <label id="baselineRow">Starting code <span class="muted small">what is in the workspace before the agents begin</span><select id="baseline"></select></label>
+        <div id="baselineFixed" class="small muted"></div>
         <label>Requirement <span id="reqState" class="muted small"></span>
           <textarea id="reqText" rows="14" placeholder="Describe what you need the way a product owner would. Ambiguity is fine — the requirements agent will surface it and ask you at the first gate."></textarea>
         </label>
@@ -42,9 +44,8 @@
         <label class="mode-option" id="replayOption"><input type="radio" name="mode" value="replay"> <span><b>Replay the recording</b><br><span class="muted small" id="replayHint">Re-plays the committed model exchanges and the recorded human decisions. No key needed.</span></span></label>
       </div>
       <details class="advanced">
-        <summary>Advanced: starting code, model, who approves</summary>
+        <summary>Advanced: model and who approves</summary>
         <div class="advanced-grid">
-          <label>Starting code <select id="baseline"></select></label>
           <label>Provider <select id="provider"></select></label>
           <label>Model <input type="text" id="model" placeholder="provider default"></label>
           <label>Approver <select id="approver">

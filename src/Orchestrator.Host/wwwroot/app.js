@@ -136,6 +136,10 @@
       : 'Re-plays the committed model exchanges and the recorded human decisions. No key needed.';
     if (!canReplay) document.querySelector('input[name="mode"][value="live"]').checked = true;
     $('reqState').textContent = !p ? '(your own requirement)' : unchanged ? `(scenario "${p.name}", unchanged)` : `(scenario "${p.name}", edited → a new ad-hoc requirement)`;
+    // A scenario fixes its starting code; only a hand-written requirement chooses one.
+    $('baselineRow').hidden = !!p;
+    $('baselineFixed').hidden = !p;
+    $('baselineFixed').textContent = p ? `Starting code (set by the scenario): ${baselineLabel(p.baseline)}` : '';
     const live = document.querySelector('input[name="mode"]:checked').value === 'live';
     const provider = state.providers?.providers.find(x => x.id === $('provider').value);
     $('composeHint').textContent = live
