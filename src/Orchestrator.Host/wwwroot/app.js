@@ -320,7 +320,7 @@
       case 'RunStarted': icon = '🚀'; text = `run started — workflow ${d.workflow} (${d.kind}), requirement ${d.requirement}`; break;
       case 'StageStarted': icon = '▶'; text = `started by <span class="agent-tag">${esc(d.agent)}</span>`; break;
       case 'StageCompleted': icon = '✔'; cls = 'k-ok'; text = `completed after ${d.attempts} attempt(s)${d.fallback === 'True' ? ' via fallback' : ''}`; break;
-      case 'StageAttemptFailed': icon = '✖'; cls = 'k-fail'; text = `attempt ${d.attempt} failed: ${esc(d.reason)}`; break;
+      case 'StageAttemptFailed': icon = '✖'; cls = 'k-fail'; text = `attempt ${d.attempt} failed: ${esc(d.reason)}${d.workspace ? ' (workspace ' + esc(d.workspace) + ')' : ''}`; break;
       case 'StageRetryScheduled': icon = '↻'; cls = 'k-warn'; text = `retry #${d.nextAttempt} in ${d.delayMs} ms`; break;
       case 'StageFallbackUsed': icon = '↷'; cls = 'k-warn'; text = `falling back from ${d.from} to ${d.to}`; break;
       case 'StageFailed': icon = '■'; cls = 'k-fail'; text = `FAILED: ${esc(d.reason)}`; break;

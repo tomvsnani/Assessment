@@ -5,7 +5,9 @@ namespace Orchestrator.Core.Contracts;
 /// <summary>
 /// Everything an agent may see while executing one stage: the requirement, every artifact
 /// produced so far (by name), every decision taken so far, the workspace it may edit, and the
-/// checkpoint taken just before this attempt (so an agent can list what it changed).
+/// checkpoint taken when the stage started (so an agent can list what it changed). Attempts within
+/// a stage share the workspace: a retry sees what the previous attempt wrote, so the checkpoint is
+/// the stage's, not the attempt's.
 /// </summary>
 public sealed record StageContext(
     string RunId,
@@ -14,7 +16,7 @@ public sealed record StageContext(
     IReadOnlyDictionary<string, Artifact> Artifacts,
     IReadOnlyList<Decision> Decisions,
     IWorkspace Workspace,
-    WorkspaceCheckpoint AttemptStart,
+    WorkspaceCheckpoint StageStart,
     int Attempt,
     CancellationToken CancellationToken)
 {

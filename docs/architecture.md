@@ -84,7 +84,7 @@ Non-linear paths that actually occur:
 - **policy blocks an exit gate** → the stage retries with the block reason as feedback, inside its retry budget.
 - **an artifact is re-produced with a different hash** while stages that consumed it are already complete → `Coordinator.ReactToArtifactsAsync` invalidates them. This path always restores: work built on a stale input is not worth keeping, unlike work that merely failed a test.
 
-The escalation ladder for a failing implementation is therefore: retry inside the stage (transient or malformed output) → fix loop with feedback, files kept (a verdict) → loop budget exhausted → safe-stop, full saga rollback → human. Each rung is bounded in the workflow file; none is chosen by an agent.
+The escalation ladder for a failing implementation is therefore: retry inside the stage (transient or malformed output; the next attempt keeps the files, exit-gate policies are evaluated over everything changed since the stage started) → fix loop with feedback, files kept (a verdict) → loop budget exhausted → safe-stop, full saga rollback → human. Each rung is bounded in the workflow file; none is chosen by an agent. A stage that fails outright restores its own checkpoint, so no rung leaves unreviewed files behind.
 
 ### Governance
 | Mechanism | Where | What it enforces |

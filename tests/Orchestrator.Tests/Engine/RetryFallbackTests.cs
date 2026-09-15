@@ -51,6 +51,55 @@ public class RetryFallbackTests
     }
 
     [Fact]
+    public async Task Given_attempt_writes_files_then_fails_When_retried_Then_next_attempt_sees_those_files_and_the_stage_lists_them_as_changed()
+    {
+        // The case seen live: a green build, then an empty final message. Redoing the build from scratch is the wrong response.
+        var filesSeen = new List<IReadOnlyList<string>>();
+        var agents = new FakeAgents()
+            .Add("flaky", async ctx =>
+            {
+                filesSeen.Add(ctx.Workspace.ListFiles());
+                await ctx.Workspace.WriteFileAsync($"src/Attempt{ctx.Attempt}.cs", "class C {}", ctx.CancellationToken);
+                return ctx.Attempt == 1
+                    ? StageResult.Malformed("final message had no artifact tag")
+                    : StageResult.Success(Result(ctx, string.Join(",", ctx.Workspace.ChangedSince(ctx.StageStart))));
+            })
+            .Producing("steady", "result");
+        using var run = new TestRun(WithRetry, agents);
+
+        var outcome = await run.RunAsync();
+
+        outcome.Succeeded.Should().BeTrue();
+        filesSeen[1].Should().Equal("src/Attempt1.cs");
+        run.EventsOfKind(EventKind.StageAttemptFailed).Single()["workspace"].Should().Be("kept");
+        run.Workspace.Files.Keys.Should().BeEquivalentTo("src/Attempt1.cs", "src/Attempt2.cs");
+        run.Events.All.Single(e => e.Kind == EventKind.ArtifactProduced)["name"].Should().Be("result");
+        run.EventsOfKind(EventKind.StageCompleted).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Given_every_attempt_writes_files_and_fails_When_stage_fails_Then_workspace_is_restored_to_the_stage_start()
+    {
+        var agents = new FakeAgents()
+            .Add("flaky", async ctx =>
+            {
+                await ctx.Workspace.WriteFileAsync($"src/Attempt{ctx.Attempt}.cs", "class C {}", ctx.CancellationToken);
+                return StageResult.Failure($"attempt {ctx.Attempt} broke");
+            })
+            .Add("steady", async ctx =>
+            {
+                await ctx.Workspace.WriteFileAsync("src/Fallback.cs", "class F {}", ctx.CancellationToken);
+                return StageResult.Failure("fallback broke too");
+            });
+        using var run = new TestRun(WithRetry, agents);
+
+        var outcome = await run.RunAsync();
+
+        outcome.Succeeded.Should().BeFalse();
+        run.Workspace.Files.Should().BeEmpty("a stage that fails outright must not leave its attempts' files behind");
+    }
+
+    [Fact]
     public async Task Given_agent_always_fails_When_retries_exhausted_Then_fallback_agent_runs_once_and_succeeds()
     {
         var agents = new FakeAgents()

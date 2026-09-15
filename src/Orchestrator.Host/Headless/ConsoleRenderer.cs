@@ -23,7 +23,7 @@ public sealed class ConsoleRenderer : IDisposable
             EventKind.RunStarted => $"run started: workflow={evt["workflow"]} kind={evt["kind"]} requirement={evt["requirement"]}",
             EventKind.StageStarted => $"▶ {evt.StageId} ({evt["agent"]})",
             EventKind.StageCompleted => $"✔ {evt.StageId} completed after {evt["attempts"]} attempt(s){(evt["fallback"] == "True" ? " via fallback" : string.Empty)}",
-            EventKind.StageAttemptFailed => $"✖ {evt.StageId} attempt {evt["attempt"]} failed: {evt["reason"]}",
+            EventKind.StageAttemptFailed => $"✖ {evt.StageId} attempt {evt["attempt"]} failed: {evt["reason"]}{(evt["workspace"].Length > 0 ? $" (workspace {evt["workspace"]})" : string.Empty)}",
             EventKind.StageRetryScheduled => $"↻ {evt.StageId} retry #{evt["nextAttempt"]} in {evt["delayMs"]} ms",
             EventKind.StageFallbackUsed => $"↷ {evt.StageId} falling back from {evt["from"]} to {evt["to"]}",
             EventKind.StageFailed => $"■ {evt.StageId} FAILED: {evt["reason"]}",

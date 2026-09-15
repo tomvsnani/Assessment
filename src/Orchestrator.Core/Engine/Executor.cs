@@ -72,9 +72,8 @@ public sealed class Executor(
                 return new StageExecution.Stopped(stage.Id);
             }
 
-            var attemptCheckpoint = workspace.Checkpoint();
-            var context = new StageContext(events.RunId, stage, requirement, artifacts, [.. decisions, .. newDecisions], workspace, attemptCheckpoint, attempt, ct);
-            var attemptResult = await TryAttemptAsync(agent, context, attemptCheckpoint);
+            var context = new StageContext(events.RunId, stage, requirement, artifacts, [.. decisions, .. newDecisions], workspace, stageCheckpoint, attempt, ct);
+            var attemptResult = await TryAttemptAsync(agent, context);
             if (attemptResult is AttemptOutcome.Cancelled)
             {
                 await workspace.RestoreAsync(stageCheckpoint, CancellationToken.None);
@@ -83,7 +82,7 @@ public sealed class Executor(
 
             if (attemptResult is AttemptOutcome.Succeeded ok)
             {
-                var exit = await CheckExitGateAsync(stage, ok.Result, artifacts, [.. decisions, .. newDecisions], workspace, attemptCheckpoint, ct);
+                var exit = await CheckExitGateAsync(stage, ok.Result, artifacts, [.. decisions, .. newDecisions], workspace, stageCheckpoint, ct);
                 switch (exit)
                 {
                     case ExitOutcome.Passed passed:
@@ -112,10 +111,13 @@ public sealed class Executor(
                 }
             }
 
+            // The next attempt keeps this one's files: a malformed final message, a policy block or a
+            // human's "revise" is a reason to fix the work, not to redo it. Exit-gate policies and the
+            // changed-file list are computed since the stage checkpoint, so nothing written by an
+            // earlier attempt escapes evaluation. If every attempt fails, the stage checkpoint is restored.
             var failed = (AttemptOutcome.Failed)attemptResult;
             events.Append(EventKind.StageAttemptFailed, stage.Id,
-                ("attempt", attempt.ToString(CultureInfo.InvariantCulture)), ("reason", failed.Reason));
-            await workspace.RestoreAsync(attemptCheckpoint, CancellationToken.None);
+                ("attempt", attempt.ToString(CultureInfo.InvariantCulture)), ("reason", failed.Reason), ("workspace", "kept"));
             artifacts[FeedbackArtifact] = failed.Feedback
                 ?? new Artifact(FeedbackArtifact, ArtifactKind.Feedback, failed.Reason, stage.Id, []);
 
@@ -150,6 +152,7 @@ public sealed class Executor(
                 continue;
             }
 
+            await workspace.RestoreAsync(stageCheckpoint, CancellationToken.None);
             return Fail(stage, failed.Reason, [artifacts[FeedbackArtifact]], failed.IsVerdict);
         }
     }
@@ -220,7 +223,7 @@ public sealed class Executor(
         };
     }
 
-    private static async Task<AttemptOutcome> TryAttemptAsync(IStageAgent agent, StageContext context, WorkspaceCheckpoint checkpoint)
+    private static async Task<AttemptOutcome> TryAttemptAsync(IStageAgent agent, StageContext context)
     {
         try
         {

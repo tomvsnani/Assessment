@@ -33,7 +33,7 @@ public sealed class ImplementerAgent(AgentDependencies deps) : LlmAgent(deps)
     protected override StageResult Parse(string finalText, StageContext ctx, IReadOnlyDictionary<string, string> artifacts)
     {
         var summary = ArtifactParser.Require(artifacts, ArtifactName);
-        var changed = ctx.Workspace.ChangedSince(ctx.AttemptStart);
+        var changed = ctx.Workspace.ChangedSince(ctx.StageStart);
         if (changed.Count == 0)
         {
             throw new AgentOutputException("no files were written to the workspace");

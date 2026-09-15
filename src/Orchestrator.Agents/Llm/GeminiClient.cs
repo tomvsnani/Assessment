@@ -55,7 +55,7 @@ public sealed class GeminiClient(HttpClient http, string apiKey, string model = 
             throw new LlmException(Provider, (int)response.StatusCode, json);
         }
 
-        return Parse(JsonDocument.Parse(json).RootElement);
+        return Parse(JsonDocument.Parse(json).RootElement, json);
     }
 
     private static JsonNode ToWire(LlmMessage message) => message switch
@@ -91,10 +91,23 @@ public sealed class GeminiClient(HttpClient http, string apiKey, string model = 
 
     private const string SyntheticIdPrefix = "call-";
 
-    private static LlmResponse Parse(JsonElement root)
+    private LlmResponse Parse(JsonElement root, string json)
     {
-        var candidate = root.GetProperty("candidates")[0];
-        var content = candidate.GetProperty("content");
+        // A 200 is not a usable answer: Gemini returns no candidates when the prompt is blocked, and a
+        // candidate without content (or with empty parts) on SAFETY/RECITATION/OTHER and sometimes on
+        // MAX_TOKENS spent entirely on thinking. Either way there is nothing to hand the agent; treat it
+        // as a transient provider failure so the tool loop retries the call instead of failing the stage.
+        if (!root.TryGetProperty("candidates", out var candidates) || candidates.ValueKind != JsonValueKind.Array || candidates.GetArrayLength() == 0)
+        {
+            throw new LlmException(Provider, 200, "no candidates in response: " + json, transient: true);
+        }
+
+        var candidate = candidates[0];
+        if (!candidate.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Object)
+        {
+            throw new LlmException(Provider, 200, "candidate without content (finishReason " + FinishReason(candidate) + "): " + json, transient: true);
+        }
+
         var parts = content.TryGetProperty("parts", out var p) ? p : default;
         var text = string.Empty;
         var calls = new List<ToolCall>();
@@ -120,12 +133,20 @@ public sealed class GeminiClient(HttpClient http, string apiKey, string model = 
             }
         }
 
-        var usage = root.GetProperty("usageMetadata");
-        var finish = candidate.TryGetProperty("finishReason", out var fr) ? fr.GetString() : null;
+        if (text.Length == 0 && calls.Count == 0)
+        {
+            throw new LlmException(Provider, 200, "candidate with no text and no function call (finishReason " + FinishReason(candidate) + "): " + json, transient: true);
+        }
+
+        var usage = root.TryGetProperty("usageMetadata", out var u) ? u : default;
+        var finish = FinishReason(candidate);
         return new LlmResponse(
             new LlmMessage.AssistantTurn(content.Clone(), text, calls),
             calls.Count > 0 ? "tool_use" : finish == "MAX_TOKENS" ? "max_tokens" : "end_turn",
-            usage.TryGetProperty("promptTokenCount", out var i) ? i.GetInt32() : 0,
-            usage.TryGetProperty("candidatesTokenCount", out var o) ? o.GetInt32() : 0);
+            usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("promptTokenCount", out var i) ? i.GetInt32() : 0,
+            usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("candidatesTokenCount", out var o) ? o.GetInt32() : 0);
     }
+
+    private static string? FinishReason(JsonElement candidate) =>
+        candidate.TryGetProperty("finishReason", out var fr) && fr.ValueKind == JsonValueKind.String ? fr.GetString() : null;
 }
