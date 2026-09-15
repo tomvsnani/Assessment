@@ -8,51 +8,75 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">SDLC Orchestrator <span class="muted">agentic delivery with human gates</span></div>
-    <div class="controls">
-      <label>Run <select id="runPicker"></select></label>
-      <button id="newRun">New run…</button>
-      <button id="replayRun" title="Replay the selected run from its own recording" disabled>Replay this run</button>
-      <button id="stop" class="danger" disabled>Safe stop</button>
+    <div class="brand"><a href="#" id="home">SDLC Orchestrator</a> <span class="muted">a requirement in, a reviewed engineering outcome out — humans approve the big steps</span></div>
+    <div class="controls" id="runControls" hidden>
+      <a href="#" id="back" class="linkbtn">← Start screen</a>
+      <button id="stop" class="danger" disabled title="Emergency stop: cancels agents and rolls back completed stages">Safe stop</button>
     </div>
   </header>
 
   <div id="banner" class="banner" hidden></div>
 
-  <section id="composer" class="card composer" hidden>
-    <h2>New run <span class="muted small">any requirement, any baseline — the presets are just examples</span></h2>
-    <p class="small muted">Pick a preset to load its requirement, then <b>edit the text freely</b> — or write your own. Anything you change makes it an ad-hoc run recorded under its own id. The requirements agent will surface whatever it finds ambiguous and ask you at the first gate.</p>
-    <div class="composer-grid">
-      <label>Start from <select id="preset"><option value="">— blank: write your own —</option></select></label>
-      <label>Baseline <select id="baseline"></select></label>
-      <label>Title <input type="text" id="reqTitle" placeholder="short title"></label>
-      <label class="wide">Requirement <span class="muted small" id="reqState"></span><textarea id="reqText" rows="12" placeholder="Describe what you need, the way a product owner would. Ambiguity is fine — the requirements agent will surface it and ask you to decide."></textarea></label>
-      <label><input type="checkbox" id="live" checked> live (calls the provider and records)</label>
-      <label>Provider <select id="provider"></select></label>
-      <label>Model <input type="text" id="model" placeholder="provider default"></label>
-      <label>Approver <select id="approver">
-        <option value="web">web (you decide here)</option>
-        <option value="replay">replay recorded decisions</option>
-        <option value="unattended">unattended (auto-approve, labelled)</option>
-      </select></label>
+  <!-- ===================== Screen 1: start ===================== -->
+  <main id="view-start" class="start">
+    <section class="card">
+      <h2>1 · What should be built?</h2>
+      <p class="muted small">Pick a scenario to load its requirement, or write your own. The text is yours to edit; the agents only ever see what is in the box.</p>
+      <div id="scenarioCards" class="scenario-cards"></div>
+    </section>
+
+    <section class="card">
+      <h2>2 · The requirement</h2>
+      <div class="editor">
+        <label>Title <input type="text" id="reqTitle" placeholder="short title"></label>
+        <label>Requirement <span id="reqState" class="muted small"></span>
+          <textarea id="reqText" rows="14" placeholder="Describe what you need the way a product owner would. Ambiguity is fine — the requirements agent will surface it and ask you at the first gate."></textarea>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3 · How to run it</h2>
+      <div class="mode">
+        <label class="mode-option"><input type="radio" name="mode" value="live" checked> <span><b>Run live</b><br><span class="muted small">Agents call the model with your API key. You approve the spec, the design and the release in this page. The run is recorded.</span></span></label>
+        <label class="mode-option" id="replayOption"><input type="radio" name="mode" value="replay"> <span><b>Replay the recording</b><br><span class="muted small" id="replayHint">Re-plays the committed model exchanges and the recorded human decisions. No key needed.</span></span></label>
+      </div>
+      <details class="advanced">
+        <summary>Advanced: starting code, model, who approves</summary>
+        <div class="advanced-grid">
+          <label>Starting code <select id="baseline"></select></label>
+          <label>Provider <select id="provider"></select></label>
+          <label>Model <input type="text" id="model" placeholder="provider default"></label>
+          <label>Approver <select id="approver">
+            <option value="web">me, in this page</option>
+            <option value="unattended">nobody — auto-approve, labelled as such</option>
+          </select></label>
+        </div>
+      </details>
       <div class="actions">
-        <button id="start" class="primary">Start run</button>
-        <button id="cancelCompose">Cancel</button>
+        <button id="start" class="primary big">Start</button>
         <span id="composeHint" class="muted small"></span>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <main class="layout">
+    <section class="card">
+      <h2>Previous runs <span class="muted small">open one to see everything it did</span></h2>
+      <div id="runTableWrap"><table id="runTable" class="runs"></table></div>
+      <div class="actions"><button id="deleteFailed" class="small-btn">Delete failed runs</button></div>
+    </section>
+  </main>
+
+  <!-- ===================== Screen 2: one run ===================== -->
+  <main id="view-run" class="layout" hidden>
     <aside class="left">
       <section class="card">
         <h2>Run <span id="runId" class="mono muted"></span></h2>
+        <div id="title" class="run-title"></div>
         <div class="badges">
           <span id="status" class="badge">no run</span>
           <span id="mode" class="badge muted"></span>
           <span id="baselineBadge" class="badge muted"></span>
         </div>
-        <div id="title" class="small"></div>
         <div id="outcome" class="small muted"></div>
       </section>
 
@@ -74,12 +98,12 @@
     </aside>
 
     <section class="center">
+      <div id="approval" class="card approval" hidden></div>
+
       <section id="now" class="card now">
         <h2>Right now <span class="muted small">live activity per running stage</span></h2>
         <div id="nowBody" class="muted small">Nothing running.</div>
       </section>
-
-      <div id="approval" class="card approval" hidden></div>
 
       <nav class="tabs">
         <button data-tab="timeline" class="active">Timeline</button>
@@ -99,9 +123,7 @@
         <ol id="timeline" class="timeline"></ol>
       </section>
 
-      <section id="tab-agents" class="tab card" hidden>
-        <div id="agents"></div>
-      </section>
+      <section id="tab-agents" class="tab card" hidden><div id="agents"></div></section>
 
       <section id="tab-artifacts" class="tab card" hidden>
         <div class="split">
@@ -110,17 +132,9 @@
         </div>
       </section>
 
-      <section id="tab-lineage" class="tab card" hidden>
-        <div id="lineage" class="doc"></div>
-      </section>
-
-      <section id="tab-audit" class="tab card" hidden>
-        <div id="audit"></div>
-      </section>
-
-      <section id="tab-workflow" class="tab card" hidden>
-        <div id="workflow" class="doc"></div>
-      </section>
+      <section id="tab-lineage" class="tab card" hidden><div id="lineage" class="doc"></div></section>
+      <section id="tab-audit" class="tab card" hidden><div id="audit"></div></section>
+      <section id="tab-workflow" class="tab card" hidden><div id="workflow" class="doc"></div></section>
     </section>
   </main>
 

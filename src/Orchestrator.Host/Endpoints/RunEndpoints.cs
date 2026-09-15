@@ -17,6 +17,7 @@ public static class RunEndpoints
         runs.MapGet("/{id}/artifacts/{name}", GetArtifactAsync);
         runs.MapPost("/{id}/approval", Approve);
         runs.MapPost("/{id}/stop", Stop);
+        runs.MapDelete("/{id}", Delete);
     }
 
     private static async Task<IResult> StartAsync(RunRequest request, RunService service, IHostApplicationLifetime lifetime)
@@ -92,6 +93,25 @@ public static class RunEndpoints
         return handle.WebApprover.TryResolve(decision)
             ? Results.Accepted()
             : Results.Conflict(new { error = "no approval is pending" });
+    }
+
+    /// <summary>Removes a finished run's directory (local housekeeping; runs/ is not committed). A running run cannot be deleted.</summary>
+    private static IResult Delete(string id, RunRegistry registry)
+    {
+        if (registry.Active(id) is { IsFinished: false })
+        {
+            return Results.Conflict(new { error = "the run is still running; stop it first" });
+        }
+
+        var dir = registry.DirectoryOf(id);
+        if (dir is null)
+        {
+            return Results.NotFound();
+        }
+
+        Directory.Delete(dir, recursive: true);
+        registry.Forget(id);
+        return Results.NoContent();
     }
 
     private static IResult Stop(string id, RunRegistry registry, [FromBody] StopBody? body)

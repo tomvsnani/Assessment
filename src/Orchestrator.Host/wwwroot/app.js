@@ -1,32 +1,43 @@
-// Dashboard for the SDLC orchestrator. Plain JS: one EventSource per run, summaries fetched on
-// lifecycle events, everything else rendered from the event stream.
+// Dashboard for the SDLC orchestrator. Two screens: Start (choose/write a requirement, run it)
+// and Run (watch one run: stage graph, live activity, approvals, artifacts, audit). Plain JS.
 (() => {
   const $ = (id) => document.getElementById(id);
+  const json = (r) => r.ok ? r.json() : null;
+  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const api = {
     scenarios: () => fetch('/api/scenarios').then(r => r.json()),
     baselines: () => fetch('/api/baselines').then(r => r.json()),
     providers: () => fetch('/api/providers').then(r => r.json()),
     workflow: (name) => fetch(`/api/workflows/${name}/graph`).then(r => r.json()),
     runs: () => fetch('/api/runs').then(r => r.json()),
-    run: (id) => fetch(`/api/runs/${id}`).then(r => r.ok ? r.json() : null),
-    artifact: (id, name) => fetch(`/api/runs/${id}/artifacts/${name}`).then(r => r.ok ? r.json() : null),
-    audit: (id) => fetch(`/api/runs/${id}/audit`).then(r => r.ok ? r.json() : null),
-    start: (body) => fetch('/api/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async r => ({ ok: r.ok, body: await r.json() })),
-    approve: (id, body) => fetch(`/api/runs/${id}/approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-    stop: (id) => fetch(`/api/runs/${id}/stop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'dashboard' }) }),
+    run: (id) => fetch(`/api/runs/${id}`).then(json),
+    artifact: (id, name) => fetch(`/api/runs/${id}/artifacts/${name}`).then(json),
+    audit: (id) => fetch(`/api/runs/${id}/audit`).then(json),
+    start: (body) => post('/api/runs', body).then(async r => ({ ok: r.ok, body: await r.json() })),
+    approve: (id, body) => post(`/api/runs/${id}/approval`, body),
+    stop: (id) => post(`/api/runs/${id}/stop`, { reason: 'dashboard' }),
+    delete: (id) => fetch(`/api/runs/${id}`, { method: 'DELETE' }),
   };
 
-  const state = { runId: null, source: null, events: [], summary: null, startedAt: null, presets: [], runs: [], activity: {} };
-  const LIFECYCLE = new Set(['RunStarted', 'StageScheduled', 'StageStarted', 'StageCompleted', 'StageFailed', 'StageInvalidated', 'StageAttemptFailed',
-    'StageRetryScheduled', 'StageFallbackUsed', 'ArtifactProduced', 'ApprovalRequested', 'ApprovalDecided', 'ReplanTriggered',
-    'CompensationRun', 'RollbackCompleted', 'SafeStopTriggered', 'RunCompleted', 'RunFailed', 'PolicyEvaluated']);
+  const state = { runId: null, source: null, events: [], summary: null, startedAt: null, presets: [], runs: [], providers: null, activity: {} };
   const REFRESH_ON = new Set(['StageStarted', 'StageCompleted', 'StageFailed', 'StageInvalidated', 'ApprovalRequested', 'ApprovalDecided',
     'ReplanTriggered', 'RollbackCompleted', 'RunCompleted', 'RunFailed', 'ArtifactProduced', 'StageAttemptFailed']);
+  const BASELINE_LABELS = {
+    'scaffold': 'Empty project — build configuration only (greenfield)',
+    'git:v1-legacy': 'Existing shortener v1 — synchronous click counting on the redirect path (brownfield)',
+    'git:HEAD': 'The repository exactly as it is now',
+  };
+  const SCENARIO_BLURBS = {
+    greenfield: 'Build the URL shortener from nothing: API, redirects, stats, tests, OpenAPI.',
+    brownfield: 'Modernize the existing shortener: move click counting off the redirect path with an outbox and a consumer.',
+    ambiguous: 'A vague compliance request against the existing shortener. The agents must surface what needs deciding.',
+  };
 
   // ---------- helpers ----------
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmtSecs = (iso) => state.startedAt ? ((new Date(iso) - state.startedAt) / 1000).toFixed(1) + 's' : '';
   const banner = (text, isError) => { const b = $('banner'); b.hidden = !text; b.textContent = text || ''; b.classList.toggle('error', !!isError); };
+  const baselineLabel = (id) => BASELINE_LABELS[id] || (id.startsWith('git:') ? `Code at tag ${id.slice(4)}` : id);
 
   // Minimal Markdown: headings, fences, inline code, bold, lists, tables, paragraphs. Enough for specs and designs.
   function markdown(md) {
@@ -46,8 +57,7 @@
         if (/^\s*\|?\s*:?-{2,}/.test(line)) continue;
         flushPara(); closeList();
         if (!inTable) { html += '<table>'; inTable = true; }
-        const cells = line.trim().replace(/^\||\|$/g, '').split('|').map(c => `<td>${inline(c.trim())}</td>`).join('');
-        html += `<tr>${cells}</tr>`; continue;
+        html += `<tr>${line.trim().replace(/^\||\|$/g, '').split('|').map(c => `<td>${inline(c.trim())}</td>`).join('')}</tr>`; continue;
       }
       if (line.trim() === '') { flushPara(); closeList(); closeTable(); continue; }
       para.push(line);
@@ -63,33 +73,131 @@
     return markdown(content);
   }
 
-  // ---------- tabs ----------
-  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
-    document.querySelectorAll('.tab').forEach(t => t.hidden = t.id !== `tab-${b.dataset.tab}`);
-    if (b.dataset.tab === 'audit') loadAudit();
-    if (b.dataset.tab === 'workflow') loadWorkflow();
-  }));
-
-  // ---------- run selection ----------
-  async function refreshRunList() {
-    const runs = await api.runs();
-    state.runs = runs;
-    const picker = $('runPicker');
-    const current = picker.value;
-    picker.innerHTML = '<option value="">— select —</option>' + runs.map(r =>
-      `<option value="${esc(r.id)}">${r.status === 'running' ? '▶ ' : r.status === 'succeeded' ? '✔ ' : '✖ '}${esc(r.id)}${r.title ? ' · ' + esc(r.title) : ''}${r.mode ? ' · ' + r.mode : ''}</option>`).join('');
-    picker.value = state.runId || current || '';
-    updateReplayButton();
+  // ---------- screens ----------
+  function showStart() {
+    if (state.source) { state.source.close(); state.source = null; }
+    state.runId = null;
+    $('view-run').hidden = true; $('view-start').hidden = false; $('runControls').hidden = true;
+    location.hash = '';
+    refreshRunTable();
   }
 
+  function showRun(id) {
+    $('view-start').hidden = true; $('view-run').hidden = false; $('runControls').hidden = false;
+    location.hash = 'run/' + id;
+    selectRun(id);
+  }
+
+  $('home').addEventListener('click', (e) => { e.preventDefault(); showStart(); });
+  $('back').addEventListener('click', (e) => { e.preventDefault(); showStart(); });
+
+  // ---------- start screen ----------
+  function currentPreset() { return state.presets.find(p => p.name === $('scenarioCards').dataset.selected); }
+
+  function renderScenarioCards() {
+    const selected = $('scenarioCards').dataset.selected || '';
+    $('scenarioCards').innerHTML = state.presets.map(p => `
+      <button class="scenario ${p.name === selected ? 'active' : ''}" data-name="${esc(p.name)}">
+        <div class="scenario-name">${esc(p.name)}</div>
+        <div class="muted small">${esc(SCENARIO_BLURBS[p.name] || p.requirement.title)}</div>
+        <div class="scenario-meta small">${p.hasRecording ? '<span class="k-ok">● recording available</span>' : '<span class="muted">○ not recorded yet</span>'} · starts from ${esc(baselineLabel(p.baseline).split(' — ')[0])}</div>
+      </button>`).join('') + `
+      <button class="scenario ${selected === '' ? 'active' : ''}" data-name="">
+        <div class="scenario-name">write your own</div>
+        <div class="muted small">Any requirement, against any starting code. Runs live and is recorded under its own id.</div>
+        <div class="scenario-meta small muted">edit the box below</div>
+      </button>`;
+    $('scenarioCards').querySelectorAll('.scenario').forEach(b => b.addEventListener('click', () => choosePreset(b.dataset.name)));
+  }
+
+  function choosePreset(name) {
+    $('scenarioCards').dataset.selected = name;
+    const p = state.presets.find(x => x.name === name);
+    if (p) {
+      $('reqTitle').value = p.requirement.title; $('reqText').value = p.requirement.text; $('baseline').value = p.baseline;
+    } else {
+      $('reqTitle').value = ''; $('reqText').value = ''; $('baseline').value = 'scaffold';
+    }
+    renderScenarioCards();
+    updateMode();
+  }
+
+  // Which of live / replay is possible right now, and what the Start button will do.
+  function updateMode() {
+    const p = currentPreset();
+    const unchanged = !!p && $('reqText').value.trim() === p.requirement.text.trim() && $('baseline').value === p.baseline;
+    const canReplay = unchanged && p.hasRecording;
+    const replayInput = document.querySelector('input[name="mode"][value="replay"]');
+    replayInput.disabled = !canReplay;
+    $('replayOption').classList.toggle('disabled', !canReplay);
+    $('replayHint').textContent = !p ? 'Only scenarios with a committed recording can be replayed; your own requirement runs live.'
+      : !p.hasRecording ? `"${p.name}" has not been run live yet, so there is nothing to replay.`
+      : !unchanged ? `You edited the "${p.name}" text, so this is a new requirement and must run live.`
+      : 'Re-plays the committed model exchanges and the recorded human decisions. No key needed.';
+    if (!canReplay) document.querySelector('input[name="mode"][value="live"]').checked = true;
+    $('reqState').textContent = !p ? '(your own requirement)' : unchanged ? `(scenario "${p.name}", unchanged)` : `(scenario "${p.name}", edited → a new ad-hoc requirement)`;
+    const live = document.querySelector('input[name="mode"]:checked').value === 'live';
+    const provider = state.providers?.providers.find(x => x.id === $('provider').value);
+    $('composeHint').textContent = live
+      ? (provider?.hasKey ? `Will call ${provider.id} (${$('model').value.trim() || provider.defaultModel}); you approve at three gates.` : `No key for ${$('provider').value} in the host's environment — set ${provider?.keyVariable || 'the key'} and restart the host.`)
+      : 'Will replay without calling any model.';
+    $('start').textContent = live ? 'Start live run' : 'Replay recording';
+  }
+  ['reqText', 'reqTitle', 'model'].forEach(id => $(id).addEventListener('input', updateMode));
+  ['baseline', 'provider'].forEach(id => $(id).addEventListener('change', updateMode));
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', updateMode));
+
+  $('start').addEventListener('click', async () => {
+    const p = currentPreset();
+    const live = document.querySelector('input[name="mode"]:checked').value === 'live';
+    const unchanged = !!p && $('reqText').value.trim() === p.requirement.text.trim() && $('baseline').value === p.baseline;
+    if (!$('reqText').value.trim()) { banner('Write a requirement first.', true); return; }
+    const llm = live ? { provider: $('provider').value || null, model: $('model').value.trim() || null } : {};
+    const body = unchanged
+      ? { scenario: p.name, live, approver: live ? $('approver').value : 'replay', ...llm }
+      : { requirement: { title: $('reqTitle').value, text: $('reqText').value }, baseline: $('baseline').value, live: true, approver: $('approver').value, ...llm };
+    const r = await api.start(body);
+    if (!r.ok) { banner(r.body.error || 'could not start', true); return; }
+    banner('');
+    showRun(r.body.id);
+  });
+
+  async function refreshRunTable() {
+    state.runs = await api.runs();
+    const rows = state.runs.map(r => `<tr class="${r.status}">
+      <td>${r.status === 'running' ? '<span class="spinner"></span>running' : r.status === 'succeeded' ? '<span class="k-ok">✔ succeeded</span>' : '<span class="k-fail">✖ ' + esc(r.status) + '</span>'}</td>
+      <td><b>${esc(r.name)}</b> <span class="muted small">${esc(r.title || '')}</span></td>
+      <td class="muted small">${new Date(r.startedAt).toLocaleString()}</td>
+      <td class="muted small">${esc(r.mode || '')}</td>
+      <td class="row-actions"><a href="#run/${esc(r.id)}" data-open="${esc(r.id)}">open</a>
+        ${r.status !== 'running' && r.replayable ? `<a href="#" data-replay="${esc(r.id)}">replay</a>` : ''}
+        ${r.status !== 'running' ? `<a href="#" data-delete="${esc(r.id)}" class="k-fail">delete</a>` : ''}</td>
+    </tr>`).join('');
+    $('runTable').innerHTML = rows ? `<tr><th>status</th><th>run</th><th>started</th><th>mode</th><th></th></tr>${rows}` : '<tr><td class="muted">No runs yet.</td></tr>';
+    $('runTable').querySelectorAll('[data-open]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); showRun(a.dataset.open); }));
+    $('runTable').querySelectorAll('[data-replay]').forEach(a => a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const r = await api.start({ replayOf: a.dataset.replay, approver: 'replay' });
+      if (!r.ok) { banner(r.body.error || 'could not replay', true); return; }
+      showRun(r.body.id);
+    }));
+    $('runTable').querySelectorAll('[data-delete]').forEach(a => a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (confirm(`Delete run ${a.dataset.delete} and everything it recorded?`)) { await api.delete(a.dataset.delete); refreshRunTable(); }
+    }));
+    $('deleteFailed').disabled = !state.runs.some(r => r.status === 'failed' || r.status === 'incomplete');
+  }
+  $('deleteFailed').addEventListener('click', async () => {
+    const failed = state.runs.filter(r => r.status === 'failed' || r.status === 'incomplete');
+    if (failed.length && confirm(`Delete ${failed.length} failed run(s)?`)) { await Promise.all(failed.map(r => api.delete(r.id))); refreshRunTable(); }
+  });
+
+  // ---------- run screen: selection + stream ----------
   async function selectRun(id) {
     if (state.source) { state.source.close(); state.source = null; }
     state.runId = id; state.events = []; state.summary = null; state.startedAt = null; state.activity = {};
-    updateReplayButton(); renderNow();
     $('timeline').innerHTML = ''; $('agents').innerHTML = ''; $('artifactList').innerHTML = ''; $('artifactView').innerHTML = '<p class="muted">Select an artifact.</p>';
-    $('runPicker').value = id || '';
-    if (!id) { renderSummary(null); return; }
+    renderNow();
     await refreshSummary();
     const source = new EventSource(`/api/runs/${id}/events`);
     state.source = source;
@@ -103,63 +211,22 @@
       if (evt.kind === 'AgentTurn' || evt.kind === 'ToolInvoked') appendAgentTrace(evt);
       if (REFRESH_ON.has(evt.kind) && !pending) { pending = true; setTimeout(() => { pending = false; refreshSummary(); }, 250); }
     };
-    source.addEventListener('end', () => { source.close(); refreshSummary(); refreshRunList(); });
-    source.onerror = () => { /* the browser reconnects; duplicates are filtered by seq on the server via Last-Event-ID */ };
+    source.addEventListener('end', () => { source.close(); refreshSummary(); });
   }
 
   async function refreshSummary() {
     if (!state.runId) return;
-    const summary = await api.run(state.runId);
-    state.summary = summary;
-    renderSummary(summary);
+    state.summary = await api.run(state.runId);
+    renderSummary(state.summary);
   }
 
-  // ---------- live activity ----------
-  // Per stage: what the agent is doing now, derived from started/finished event pairs.
-  function trackActivity(e) {
-    const a = state.activity;
-    const d = e.data;
-    switch (e.kind) {
-      case 'StageStarted': a[e.stageId] = { agent: d.agent, what: 'starting', since: e.at, kind: 'busy' }; break;
-      case 'ModelCallStarted': a[e.stageId] = { agent: d.agent, what: `calling the model — turn ${d.iteration} (${d.messages} messages in context)`, since: e.at, kind: 'busy' }; break;
-      case 'ProviderRetry': a[e.stageId] = { agent: d.agent, what: `provider ${d.status === '429' ? 'rate-limited (429)' : 'error ' + d.status}; waiting ${Math.round(d.delayMs / 1000)}s before attempt ${+d.attempt + 1}/${d.maxAttempts}`, since: e.at, kind: 'retry' }; break;
-      case 'AgentTurn': a[e.stageId] = { agent: d.agent, what: d.toolCalls > 0 ? `model asked for ${d.toolCalls} tool call(s)` : 'model answered; parsing the artifact', since: e.at, kind: 'busy' }; break;
-      case 'ToolStarted': a[e.stageId] = { agent: d.agent, what: `running ${d.tool} ${d.arguments.length > 90 ? d.arguments.slice(0, 90) + '…' : d.arguments}`, since: e.at, kind: 'busy' }; break;
-      case 'ToolInvoked': a[e.stageId] = { agent: d.agent, what: `${d.tool} finished (${d.durationMs} ms); back to the model`, since: e.at, kind: 'busy' }; break;
-      case 'PolicyEvaluated': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `policy ${d.policy}: ${d.verdict}`, since: e.at, kind: 'busy' }; break;
-      case 'ApprovalRequested': a[e.stageId] = { agent: 'you', what: `waiting for a human decision: ${d.label}`, since: e.at, kind: 'human' }; break;
-      case 'ApprovalDecided': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `decision ${d.decision} recorded`, since: e.at, kind: 'busy' }; break;
-      case 'StageRetryScheduled': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `retry #${d.nextAttempt} scheduled`, since: e.at, kind: 'busy' }; break;
-      case 'StageCompleted': case 'StageFailed': case 'StageInvalidated': delete a[e.stageId]; break;
-      case 'RunCompleted': case 'RunFailed': state.activity = {}; break;
-      default: return;
-    }
-    renderNow();
-  }
-
-  function renderNow() {
-    const rows = Object.entries(state.activity);
-    const body = $('nowBody');
-    if (!rows.length) { body.innerHTML = state.summary?.status === 'running' ? '<span class="spinner"></span>scheduler is dispatching the next stage…' : 'Nothing running.'; return; }
-    body.innerHTML = rows.map(([stage, a]) => `<div class="now-row ${a.kind === 'human' ? 'waiting-human' : ''}" data-since="${a.since}">
-      <span class="stage-tag mono">${esc(stage)}</span><span class="agent-tag">${esc(a.agent)}</span>
-      <span class="what">${a.kind === 'human' ? '👤 ' : a.kind === 'retry' ? '⏳ ' : '<span class="spinner"></span>'}${esc(a.what)}</span><span class="elapsed">0s</span></div>`).join('');
-  }
-
-  setInterval(() => {
-    document.querySelectorAll('.now-row').forEach(row => {
-      const secs = Math.max(0, (Date.now() - new Date(row.dataset.since)) / 1000);
-      row.querySelector('.elapsed').textContent = secs >= 60 ? `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s` : `${Math.round(secs)}s`;
-    });
-  }, 1000);
-
-  // ---------- rendering ----------
+  // ---------- run screen: rendering ----------
   function renderSummary(s) {
     $('runId').textContent = s ? s.id : '';
     const st = $('status'); st.textContent = s ? s.status : 'no run'; st.className = 'badge ' + (s ? s.status : '');
     $('mode').textContent = s ? s.mode : '';
-    $('baselineBadge').textContent = s ? 'baseline ' + s.baseline : '';
-    $('title').textContent = s?.title ? s.title : '';
+    $('baselineBadge').textContent = s ? baselineLabel(s.baseline).split(' — ')[0] : '';
+    $('title').textContent = s?.title || '';
     $('outcome').textContent = s?.outcome || '';
     $('stop').disabled = !s || s.status !== 'running';
     renderGraph(s); renderMetrics(s); renderArtifacts(s); renderApproval(s); renderLineage(s); renderNow();
@@ -167,7 +234,7 @@
 
   function renderGraph(s) {
     const g = $('graph');
-    if (!s) { g.innerHTML = '<span class="muted small">Start or select a run.</span>'; return; }
+    if (!s) { g.innerHTML = ''; return; }
     const byId = Object.fromEntries(s.stages.map(x => [x.id, x]));
     g.innerHTML = s.parallelLevels.map((level, i) => {
       const boxes = level.map(id => {
@@ -178,6 +245,13 @@
       }).join('');
       return `${i ? '<div class="arrow">→</div>' : ''}<div class="level">${boxes}</div>`;
     }).join('');
+  }
+
+  function fmtDuration(ts) {
+    const m = /(?:(\d+)\.)?(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(ts || '');
+    if (!m) return ts;
+    const secs = (+m[1] || 0) * 86400 + (+m[2]) * 3600 + (+m[3]) * 60 + parseFloat(m[4]);
+    return secs >= 60 ? `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s` : `${secs.toFixed(1)}s`;
   }
 
   function renderMetrics(s) {
@@ -196,23 +270,50 @@
     $('fidelity').textContent = s.replay ? `replay fidelity: ${s.replay.exact} exact, ${s.replay.bySequence} by sequence` : '';
   }
 
-  function fmtDuration(ts) {
-    // .NET TimeSpan serialises as "hh:mm:ss.fffffff" or "d.hh:mm:ss"
-    const m = /(?:(\d+)\.)?(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(ts || '');
-    if (!m) return ts;
-    const secs = (+m[1] || 0) * 86400 + (+m[2]) * 3600 + (+m[3]) * 60 + parseFloat(m[4]);
-    return secs >= 60 ? `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s` : `${secs.toFixed(1)}s`;
+  // Per stage: what the agent is doing now, derived from started/finished event pairs.
+  function trackActivity(e) {
+    const a = state.activity, d = e.data;
+    switch (e.kind) {
+      case 'StageStarted': a[e.stageId] = { agent: d.agent, what: 'starting', since: e.at, kind: 'busy' }; break;
+      case 'ModelCallStarted': a[e.stageId] = { agent: d.agent, what: `calling the model — turn ${d.iteration} (${d.messages} messages in context)`, since: e.at, kind: 'busy' }; break;
+      case 'ProviderRetry': a[e.stageId] = { agent: d.agent, what: `provider ${d.status === '429' ? 'rate-limited (429)' : 'error ' + d.status}; waiting ${Math.round(d.delayMs / 1000)}s before attempt ${+d.attempt + 1}/${d.maxAttempts}`, since: e.at, kind: 'retry' }; break;
+      case 'AgentTurn': a[e.stageId] = { agent: d.agent, what: d.toolCalls > 0 ? `model asked for ${d.toolCalls} tool call(s)` : 'model answered; parsing the artifact', since: e.at, kind: 'busy' }; break;
+      case 'ToolStarted': a[e.stageId] = { agent: d.agent, what: `running ${d.tool} ${d.arguments.length > 90 ? d.arguments.slice(0, 90) + '…' : d.arguments}`, since: e.at, kind: 'busy' }; break;
+      case 'ToolInvoked': a[e.stageId] = { agent: d.agent, what: `${d.tool} finished (${d.durationMs} ms); back to the model`, since: e.at, kind: 'busy' }; break;
+      case 'PolicyEvaluated': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `policy ${d.policy}: ${d.verdict}`, since: e.at, kind: 'busy' }; break;
+      case 'ApprovalRequested': a[e.stageId] = { agent: 'you', what: `waiting for your decision: ${d.label}`, since: e.at, kind: 'human' }; break;
+      case 'ApprovalDecided': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `decision ${d.decision} recorded`, since: e.at, kind: 'busy' }; break;
+      case 'StageRetryScheduled': a[e.stageId] = { agent: (a[e.stageId] || {}).agent || '', what: `retry #${d.nextAttempt} scheduled`, since: e.at, kind: 'busy' }; break;
+      case 'StageCompleted': case 'StageFailed': case 'StageInvalidated': delete a[e.stageId]; break;
+      case 'RunCompleted': case 'RunFailed': state.activity = {}; break;
+      default: return;
+    }
+    renderNow();
   }
 
+  function renderNow() {
+    const rows = Object.entries(state.activity);
+    const body = $('nowBody');
+    if (!rows.length) { body.innerHTML = state.summary?.status === 'running' ? '<span class="spinner"></span>scheduler is dispatching the next stage…' : 'Nothing running.'; return; }
+    body.innerHTML = rows.map(([stage, a]) => `<div class="now-row ${a.kind === 'human' ? 'waiting-human' : ''}" data-since="${a.since}">
+      <span class="stage-tag mono">${esc(stage)}</span><span class="agent-tag">${esc(a.agent)}</span>
+      <span class="what">${a.kind === 'human' ? '👤 ' : a.kind === 'retry' ? '⏳ ' : '<span class="spinner"></span>'}${esc(a.what)}</span><span class="elapsed">0s</span></div>`).join('');
+  }
+  setInterval(() => {
+    document.querySelectorAll('.now-row').forEach(row => {
+      const secs = Math.max(0, (Date.now() - new Date(row.dataset.since)) / 1000);
+      row.querySelector('.elapsed').textContent = secs >= 60 ? `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s` : `${Math.round(secs)}s`;
+    });
+  }, 1000);
+
   function appendTimeline(e) {
-    const isTrace = e.kind === 'AgentTurn' || e.kind === 'ToolInvoked' || e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted' || e.kind === 'ProviderRetry';
-    if (e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted') return; // shown in the "Right now" panel instead
+    if (e.kind === 'ModelCallStarted' || e.kind === 'ToolStarted' || e.kind === 'StageScheduled') return;
+    const isTrace = e.kind === 'AgentTurn' || e.kind === 'ToolInvoked' || e.kind === 'ProviderRetry';
     if (isTrace && !$('showTrace').checked) return;
     if (e.kind === 'PolicyEvaluated' && e.data.verdict === 'Pass' && !$('showPolicyPass').checked) return;
     const d = e.data; let icon = '·', cls = '', text = '';
     switch (e.kind) {
       case 'RunStarted': icon = '🚀'; text = `run started — workflow ${d.workflow} (${d.kind}), requirement ${d.requirement}`; break;
-      case 'StageScheduled': return;
       case 'StageStarted': icon = '▶'; text = `started by <span class="agent-tag">${esc(d.agent)}</span>`; break;
       case 'StageCompleted': icon = '✔'; cls = 'k-ok'; text = `completed after ${d.attempts} attempt(s)${d.fallback === 'True' ? ' via fallback' : ''}`; break;
       case 'StageAttemptFailed': icon = '✖'; cls = 'k-fail'; text = `attempt ${d.attempt} failed: ${esc(d.reason)}`; break;
@@ -258,8 +359,7 @@
       div.innerHTML = `🔧 <b>${esc(d.tool)}</b> <span class="mono">${esc(d.arguments.length > 200 ? d.arguments.slice(0, 200) + '…' : d.arguments)}</span> <span class="muted">${d.durationMs} ms</span><details><summary class="muted">result</summary><pre>${esc(d.result)}</pre></details>`;
     }
     block.appendChild(div);
-    const turns = block.querySelectorAll('.turn').length, tools = block.querySelectorAll('.tool').length;
-    block.querySelector('.counts').textContent = `${turns} turn(s), ${tools} tool call(s)`;
+    block.querySelector('.counts').textContent = `${block.querySelectorAll('.turn').length} turn(s), ${block.querySelectorAll('.tool').length} tool call(s)`;
   }
 
   function renderArtifacts(s) {
@@ -279,18 +379,18 @@
     const p = s?.pendingApproval;
     if (!p) { panel.hidden = true; panel.innerHTML = ''; return; }
     panel.hidden = false;
-    panel.innerHTML = `<h2>Human approval required: ${esc(p.label)} — stage ${esc(p.stageId)}</h2>
-      <p class="small muted">The run is paused. Read the artifact(s), resolve any open ambiguities, then decide. Your decision is recorded with your name and rationale and cited by every later stage.</p>
+    panel.innerHTML = `<h2>Your decision is needed: ${esc(p.label)} <span class="muted small">stage ${esc(p.stageId)}</span></h2>
+      <p class="small muted">The run is paused. Read the artifact(s), answer any open questions, then decide. Your decision is recorded with your name and rationale and cited by every later stage.</p>
       ${p.artifacts.map(a => `<details open><summary>${esc(a.name)} <span class="muted small">${a.kind} · ${a.hash}</span></summary><div class="doc">${renderContent(a.kind, a.content)}</div></details>`).join('')}
       ${p.openAmbiguities.map(amb => `<div class="amb"><b>${esc(amb.id)}</b> ${esc(amb.question)}
         ${amb.options.map(o => `<label><input type="radio" name="amb-${esc(amb.id)}" value="${esc(o.id)}" ${o.id === amb.recommendedOptionId ? 'checked' : ''}> <span><b>${esc(o.id)}</b> ${esc(o.summary)}${o.id === amb.recommendedOptionId ? ' <span class="muted">(recommended)</span>' : ''}<br><span class="muted small">trade-off: ${esc(o.tradeOff)}</span></span></label>`).join('')}
       </div>`).join('')}
       <textarea id="rationale" placeholder="rationale (required for revise / reject)"></textarea>
       <div class="actions">
-        <button class="ok" data-kind="Approved">Approve</button>
-        <button class="warn" data-kind="RevisionRequested">Send back for revision</button>
-        <button class="danger" data-kind="Rejected">Reject and stop the run</button>
-        <span class="muted small">acting as <b>${esc(localStorage.getItem('actor') || '')}</b> <a href="#" id="setActor">change</a></span>
+        <button class="ok" data-kind="Approved">Approve — continue</button>
+        <button class="warn" data-kind="RevisionRequested">Send back — same agent redoes this stage with my notes</button>
+        <button class="danger" data-kind="Rejected">Reject — stop the run</button>
+        <span class="muted small">deciding as <b>${esc(localStorage.getItem('actor') || '')}</b> <a href="#" id="setActor">change</a></span>
       </div>`;
     panel.querySelector('#setActor').addEventListener('click', (ev) => { ev.preventDefault(); const n = prompt('Your name for the audit log', localStorage.getItem('actor') || ''); if (n) { localStorage.setItem('actor', n); renderApproval(s); } });
     panel.querySelectorAll('button[data-kind]').forEach(b => b.addEventListener('click', async () => {
@@ -330,72 +430,30 @@
     function gate(g) { return [g.requiredArtifacts.length ? 'artifacts: ' + esc(g.requiredArtifacts.join(', ')) : '', g.policies.length ? 'policies: ' + esc(g.policies.join(', ')) : '', g.approval ? '<b>👤 ' + esc(g.approval) + '</b>' : ''].filter(Boolean).join('<br>') || '<span class="muted">open</span>'; }
   }
 
-  // ---------- composer ----------
-  function openComposer() { $('composer').hidden = false; $('composer').scrollIntoView({ behavior: 'smooth' }); }
-  function reqState() {
-    const p = state.presets.find(x => x.name === $('preset').value);
-    const unchanged = p && $('reqText').value.trim() === p.requirement.text.trim() && $('baseline').value === p.baseline;
-    $('reqState').textContent = !p ? '(your own requirement — runs live)' : unchanged ? `(preset "${p.name}" unchanged${p.hasRecording ? ' — replayable' : ''})` : `(preset "${p.name}" edited — will run live as an ad-hoc requirement)`;
-  }
-  function applyPreset(name) {
-    const p = state.presets.find(x => x.name === name);
-    if (!p) { $('composeHint').textContent = 'Ad-hoc requirement: runs live and records into its own run directory.'; reqState(); return; }
-    $('reqTitle').value = p.requirement.title; $('reqText').value = p.requirement.text; $('baseline').value = p.baseline;
-    $('live').checked = !p.hasRecording; $('approver').value = $('live').checked ? 'web' : 'replay';
-    $('composeHint').textContent = p.hasRecording ? 'This preset has committed recordings: untick "live" to replay without a key. Edit the text and it becomes an ad-hoc run.' : 'No recording yet for this preset; it will run live.';
-    reqState();
-  }
-  ['reqText', 'baseline'].forEach(id => $(id).addEventListener('input', reqState));
-  $('baseline').addEventListener('change', reqState);
-  function updateReplayButton() {
-    const r = state.runs.find(x => x.id === state.runId);
-    $('replayRun').disabled = !(r && r.status !== 'running' && r.replayable);
-  }
-  $('newRun').addEventListener('click', openComposer);
-  $('cancelCompose').addEventListener('click', () => { $('composer').hidden = true; });
-  $('preset').addEventListener('change', (e) => applyPreset(e.target.value));
-  $('live').addEventListener('change', () => { $('approver').value = $('live').checked ? 'web' : 'replay'; });
-  $('start').addEventListener('click', async () => {
-    const presetName = $('preset').value;
-    const p = state.presets.find(x => x.name === presetName);
-    const unchanged = p && $('reqText').value.trim() === p.requirement.text.trim() && $('baseline').value === p.baseline;
-    const llm = { provider: $('provider').value || null, model: $('model').value.trim() || null };
-    const body = unchanged
-      ? { scenario: presetName, live: $('live').checked, approver: $('approver').value, ...llm }
-      : { requirement: { title: $('reqTitle').value, text: $('reqText').value }, baseline: $('baseline').value, live: true, approver: $('approver').value === 'replay' ? 'web' : $('approver').value, ...llm };
-    if (!unchanged && !$('reqText').value.trim()) { banner('Write a requirement first.', true); return; }
-    const r = await api.start(body);
-    if (!r.ok) { banner(r.body.error || 'could not start', true); return; }
-    banner(''); $('composer').hidden = true;
-    await refreshRunList();
-    await selectRun(r.body.id);
-  });
-  $('replayRun').addEventListener('click', async () => {
-    const r = await api.start({ replayOf: state.runId, approver: 'replay' });
-    if (!r.ok) { banner(r.body.error || 'could not replay', true); return; }
-    await refreshRunList(); await selectRun(r.body.id);
-  });
-  $('stop').addEventListener('click', async () => { if (state.runId && confirm('Trigger a safe stop? Running agents are cancelled and completed stages are rolled back.')) await api.stop(state.runId); });
-  $('runPicker').addEventListener('change', (e) => selectRun(e.target.value));
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
+    document.querySelectorAll('.tab').forEach(t => t.hidden = t.id !== `tab-${b.dataset.tab}`);
+    if (b.dataset.tab === 'audit') loadAudit();
+    if (b.dataset.tab === 'workflow') loadWorkflow();
+  }));
+  $('stop').addEventListener('click', async () => { if (state.runId && confirm('Safe stop? Running agents are cancelled and completed stages are rolled back. To send work back to an agent, use the approval panel instead.')) await api.stop(state.runId); });
   $('showTrace').addEventListener('change', () => { $('timeline').innerHTML = ''; state.events.forEach(appendTimeline); });
   $('showPolicyPass').addEventListener('change', () => { $('timeline').innerHTML = ''; state.events.forEach(appendTimeline); });
 
   // ---------- boot ----------
   (async () => {
     const [presets, baselines, providers] = await Promise.all([api.scenarios(), api.baselines(), api.providers()]);
-    state.presets = presets;
+    state.presets = presets; state.providers = providers;
+    $('baseline').innerHTML = baselines.map(b => `<option value="${esc(b.id)}">${esc(baselineLabel(b.id))}</option>`).join('');
     $('provider').innerHTML = providers.providers.map(p => `<option value="${esc(p.id)}" ${p.hasKey ? '' : 'disabled'}>${esc(p.id)} ${p.hasKey ? '(key present)' : '(no ' + esc(p.keyVariable) + ')'}</option>`).join('');
     $('provider').value = providers.default;
     $('provider').addEventListener('change', () => { const p = providers.providers.find(x => x.id === $('provider').value); $('model').placeholder = p ? p.defaultModel : 'provider default'; });
     $('provider').dispatchEvent(new Event('change'));
-    $('preset').innerHTML = '<option value="">— write your own —</option>' + presets.map(p => `<option value="${esc(p.name)}">${esc(p.name)}${p.hasRecording ? ' (recorded)' : ''}</option>`).join('');
-    $('baseline').innerHTML = baselines.map(b => `<option value="${esc(b.id)}">${esc(b.id)} — ${esc(b.description)}</option>`).join('');
     if (!localStorage.getItem('actor')) localStorage.setItem('actor', 'dashboard-user');
-    await refreshRunList();
-    renderSummary(null);
-    // Load the first preset into the editable box so a reviewer can change the requirement right away.
-    if (presets.length) { $('preset').value = presets[0].name; applyPreset(presets[0].name); }
-    const running = state.runs.find(r => r.status === 'running');
-    if (running) selectRun(running.id); else $('composer').hidden = false;
+    choosePreset(presets.find(p => p.name === 'greenfield')?.name ?? presets[0]?.name ?? '');
+    const runs = await api.runs();
+    const hash = /^#run\/(.+)$/.exec(location.hash);
+    const running = runs.find(r => r.status === 'running');
+    if (hash) showRun(hash[1]); else if (running) showRun(running.id); else showStart();
   })();
 })();
