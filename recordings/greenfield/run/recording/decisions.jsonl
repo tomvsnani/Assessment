@@ -1,0 +1,3 @@
+{"seq":1,"label":"approve-spec","stageId":"requirements","actor":"dashboard-user","kind":"Approved","rationale":"approved","ambiguityResolutions":{"AMB-1":"B","AMB-2":"A"},"artifactsReviewed":"spec@053fd095596dfb12","decidedAt":"2026-09-15T18:33:39.0781963+00:00"}
+{"seq":2,"label":"approve-design","stageId":"design","actor":"dashboard-user","kind":"Approved","rationale":"approved","ambiguityResolutions":{},"artifactsReviewed":"design@4e64e71e05416abb","decidedAt":"2026-09-15T18:34:20.4065503+00:00"}
+{"seq":3,"label":"approve-release","stageId":"release","actor":"dashboard-user","kind":"Approved","rationale":"approved","ambiguityResolutions":{},"artifactsReviewed":"change-record@c43bba44e418b9b6","decidedAt":"2026-09-15T19:14:28.6193753+00:00"}

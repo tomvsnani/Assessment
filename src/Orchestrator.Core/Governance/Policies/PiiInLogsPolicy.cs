@@ -26,6 +26,6 @@ public sealed partial class PiiInLogsPolicy : IPolicy
     }
 
     // Log<Level>( ... {TargetUrl} ... ) — the placeholder name reveals what is being logged.
-    [GeneratedRegex(@"Log(?:Trace|Debug|Information|Warning|Error|Critical)\s*\((?:[^;]|\n)*?\{(?<prop>TargetUrl|FullUrl|Url|OriginalUrl|IpAddress|RemoteIp|ClientIp|Ip|UserAgent)\}", RegexOptions.Singleline)]
+    [GeneratedRegex(@"Log(?:Trace|Debug|Information|Warning|Error|Critical)\s*\((?:[^;]|\n)*?\{(?<prop>TargetUrl|FullUrl|Url|OriginalUrl|LongUrl|IpAddress|RemoteIp|ClientIp|Ip|UserAgent)\}", RegexOptions.Singleline)]
     private static partial Regex LogCallWithPii();
 }

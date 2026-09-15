@@ -45,6 +45,12 @@ Do not start over.
 - **Never log a full URL, an IP address or a user agent** — not even in a warning about invalid
   input. Log the short code, the host, or a count. The `pii-in-logs` policy blocks
   `{Url}`, `{TargetUrl}`, `{IpAddress}`, `{UserAgent}` and similar placeholders in any log call.
+- **In integration tests asserting 302 redirects**, always create the test client with
+  `factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false })`.
+  Default `HttpClient` follows 302 redirects automatically, causing status 302 assertions to fail.
+- **Never make tests pass by deleting endpoints or replacing business logic with dummy stubs**.
+  All endpoints from the spec must remain implemented and wired; removing endpoints or returning
+  hardcoded dummy responses is an anti-pattern that will be rejected at the review gate.
 - Do not touch files unrelated to the plan. Do not reformat files you are not changing.
 
 If the design turns out to be unimplementable as written (missing type, contradictory

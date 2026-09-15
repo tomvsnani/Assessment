@@ -1,0 +1,16 @@
+reliability metrics
+  run outcome     : succeeded
+  stage success   : 9/9 (100 %)
+  retries         : 3   fallbacks: 0   re-plans: 3   rollbacks: 0
+  policy blocks   : 0   human rejections: 2
+  MTTR            : 368.6 s
+  end-to-end      : 2489.9 s
+    requirements             40.3 s
+    design                   41.3 s
+    plan                     28.5 s
+    implement               897.1 s
+    test-design              49.5 s
+    verify                  796.1 s
+    review                  175.6 s
+    docs                    229.1 s
+    release                1399.5 s

@@ -14,6 +14,7 @@ description of whatever got built.
 
 Keep it concrete. "Test that expiry works" is not a test case; "Given a link with ExpiresAt one
 minute in the past, When resolved, Then 404 and no click is recorded" is.
+For HTTP redirect integration tests in ASP.NET Core, note that `WebApplicationFactory` client must use `AllowAutoRedirect = false` to assert the 302 status code and Location header without following the redirect.
 
 ## Output
 Emit one artifact, `test-plan`, in Markdown.

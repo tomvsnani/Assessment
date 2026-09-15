@@ -1,0 +1,13 @@
+{
+  "name": "greenfield",
+  "scenario": "greenfield",
+  "requirement": {
+    "id": "REQ-GF-1",
+    "title": "URL shortener service, first version",
+    "text": "We need a URL shortener service for internal links. Engineers paste a long URL and get a short\none back; anyone who opens the short link is redirected to the original. We also want to see how\nmany times each short link was used.\n\nIt must be a .NET 9 web service with a JSON API, and it has to be reliable enough to put behind\nour internal load balancer: health endpoints, sensible behaviour when the database is slow, and\nlogs we can search in Splunk. Start with an in-memory store so it runs on a laptop, but structure\nit so PostgreSQL can be plugged in without rewriting the endpoints.\n\nRequests:\n\n- \u0060POST /links\u0060 with \u0060{ \u0022url\u0022: \u0022https://...\u0022 }\u0060 returns the short code and the short URL.\n- \u0060GET /{code}\u0060 redirects to the original URL.\n- \u0060GET /links/{code}/stats\u0060 returns how many times the link was followed.\n\nCustom aliases and expiry would be nice but are not required for the first version. Links must\nnot be guessable from one another. Unit tests and an OpenAPI description are expected.",
+    "kind": "Greenfield"
+  },
+  "baseline": "scaffold",
+  "workflowName": "sdlc",
+  "live": true
+}

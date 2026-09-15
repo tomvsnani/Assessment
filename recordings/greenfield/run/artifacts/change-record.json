@@ -1,0 +1,35 @@
+{
+  "title": "URL Shortener Service, First Version Deployment",
+  "riskRating": "medium",
+  "riskRationale": "This is a new, greenfield service introducing new API endpoints and functionality. While its initial implementation uses an in-memory data store, which entails data loss upon service restart or redeployment, documentation explicitly states this version is intended for development and non-persistent environments only, mitigating immediate production data loss risk (per D004, and \u0027docs/runbook-url-shortener.md\u0027). No existing systems are directly impacted by this deployment, as it is a standalone internal service.",
+  "blastRadius": [
+    "Endpoints: POST /links, GET /{code}, GET /links/{code}/stats, GET /health",
+    "Consumers: Internal engineers utilizing the service to shorten URLs and retrieve usage statistics.",
+    "Data Store: In-memory ConcurrentDictionary instances for link mappings and usage counts (conceptually, the \u0027ShortenedLinks\u0027 table for future PostgreSQL).",
+    "Downstream systems: None currently, as this is a newly introduced internal service."
+  ],
+  "rollbackPlan": "1. Identify Last Known Good Version: Determine the last deployed version of the URL Shortener service that was stable and functional.\n2. Deploy Previous Version: Utilize standard deployment tooling to roll back the service to the identified previous version. This typically involves deploying the previous container image or application package.\n3. Monitor: Closely monitor the service\u0027s health endpoints (/health) and application logs after the rollback to ensure stability. If the issue persists, further investigation into environmental factors or the previous version itself may be required.\n\nNote: Due to the in-memory nature of the current data store, rolling back to an older version (or restarting the service for any reason) will result in the loss of all shortened links created since the service last started. This data loss characteristic will change once a persistent data store (e.g., PostgreSQL) is introduced.",
+  "verificationEvidence": [
+    "Build Status: Succeeded (per \u0027test-report\u0027)",
+    "Unit Tests: Passed (23/23 tests passed, 0 failed, 0 skipped) (per \u0027test-report\u0027)",
+    "Integration Tests: Passed (10/10 tests passed, 0 failed, 0 skipped) (per \u0027test-report\u0027)",
+    "Review Verdict: APPROVE (per \u0027review\u0027)",
+    "Acceptance Criteria Coverage: All specified acceptance criteria (AC-1 through AC-8) are covered by passing unit and integration tests, as confirmed by the reviewer. (per \u0027review\u0027 rationale)"
+  ],
+  "goLiveChecklist": [
+    "1. Deploy the new service version using standard deployment tooling (e.g., container orchestrator, package manager).",
+    "2. Verify service startup by checking container/host logs for successful initialization messages and absence of critical errors.",
+    "3. Access the \u0060/health\u0060 endpoint and confirm a \u0060200 OK\u0060 response, indicating the service is alive and responsive.",
+    "4. Perform smoke tests to validate core functionality:",
+    "   - \u0060POST /links\u0060 with a valid URL and verify a \u0060201 Created\u0060 or \u0060200 OK\u0060 response with the expected \u0060shortCode\u0060 and \u0060shortUrl\u0060.",
+    "   - \u0060GET /{code}\u0060 for a newly created short link and confirm a \u0060302 Found\u0060 redirect to the original URL.",
+    "   - \u0060GET /links/{code}/stats\u0060 for the new short link and verify an initial \u0060usageCount\u0060 of 0 (or incremented if already redirected).",
+    "   - Attempt \u0060GET /{invalid_code}\u0060 and \u0060GET /links/{invalid_code}/stats\u0060 to confirm \u0060404 Not Found\u0060 responses.",
+    "5. Monitor service logs in Splunk (or configured log sink) for any \u0060Error\u0060 or \u0060Warning\u0060 level messages. Pay close attention to logs related to invalid URLs, short codes not found, or unhandled exceptions.",
+    "6. Observe service performance and error rates via existing monitoring dashboards (if applicable) for a defined observation period (e.g., 30-60 minutes) to ensure stability under expected load.",
+    "7. Confirm that the OpenAPI documentation (e.g., Swagger UI, if enabled) is accessible and correctly reflects the API endpoints and models."
+  ],
+  "openRisks": [
+    "1. Data Loss on Restart: The service currently relies on an in-memory data store. As explicitly stated in the design and runbook, all shortened links and their associated usage counts will be permanently lost if the service process restarts or is redeployed (per \u0027design\u0027 and \u0027docs/runbook-url-shortener.md\u0027). While acceptable for development and non-persistent environments, this constitutes a high risk for any production deployment requiring data persistence, making this version unsuitable for such environments without the planned PostgreSQL backend."
+  ]
+}

@@ -1,0 +1,222 @@
+[
+  {
+    "key": "WI-1",
+    "summary": "Define Core Domain Entity: Link",
+    "description": "Create the \u0060Link\u0060 record (an immutable entity) in \u0060Shortener.Core\u0060 to represent a shortened URL. This includes properties for the original long URL, the generated short code, and the usage count.",
+    "acceptanceCriteriaIds": [],
+    "dependsOn": [],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "src/Shortener.Core/Link.cs"
+    ]
+  },
+  {
+    "key": "WI-2",
+    "summary": "Define Port: ILinkRepository",
+    "description": "Create the \u0060ILinkRepository\u0060 interface in \u0060Shortener.Core/Ports\u0060. This port defines the contract for data persistence, including methods to create a link, find a link by its short code, find a link by its long URL (per D002), and increment a link\u0027s usage count.",
+    "acceptanceCriteriaIds": [
+      "AC-1",
+      "AC-2",
+      "AC-4",
+      "AC-8"
+    ],
+    "dependsOn": [
+      "WI-1"
+    ],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "src/Shortener.Core/Ports/ILinkRepository.cs"
+    ]
+  },
+  {
+    "key": "WI-3",
+    "summary": "Define Port: IShortCodeGenerator",
+    "description": "Create the \u0060IShortCodeGenerator\u0060 interface in \u0060Shortener.Core/Ports\u0060. This port defines the contract for generating unique, non-guessable short codes.",
+    "acceptanceCriteriaIds": [
+      "AC-1"
+    ],
+    "dependsOn": [],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "src/Shortener.Core/Ports/IShortCodeGenerator.cs"
+    ]
+  },
+  {
+    "key": "WI-4",
+    "summary": "Implement Infrastructure: EightCharacterAlphanumericCodeGenerator",
+    "description": "Create the \u0060EightCharacterAlphanumericCodeGenerator\u0060 class in \u0060Shortener.Infrastructure\u0060. This concrete implementation of \u0060IShortCodeGenerator\u0060 will generate 8-character, case-sensitive, alphanumeric short codes using a cryptographically secure random number generator (per D003).",
+    "acceptanceCriteriaIds": [
+      "AC-1"
+    ],
+    "dependsOn": [
+      "WI-3"
+    ],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "src/Shortener.Infrastructure/EightCharacterAlphanumericCodeGenerator.cs"
+    ]
+  },
+  {
+    "key": "WI-5",
+    "summary": "Implement Infrastructure: InMemoryLinkRepository",
+    "description": "Create the \u0060InMemoryLinkRepository\u0060 class in \u0060Shortener.Infrastructure\u0060. This in-memory adapter implements \u0060ILinkRepository\u0060 using a \u0060ConcurrentDictionary\u0060 for thread-safe storage. It must support \u0060FindByLongUrlAsync\u0060 (per D002) and \u0060IncrementUsageCountAsync\u0060.",
+    "acceptanceCriteriaIds": [
+      "AC-1",
+      "AC-2",
+      "AC-4",
+      "AC-8"
+    ],
+    "dependsOn": [
+      "WI-1",
+      "WI-2"
+    ],
+    "risk": "medium",
+    "filesLikelyTouched": [
+      "src/Shortener.Infrastructure/InMemoryLinkRepository.cs"
+    ]
+  },
+  {
+    "key": "WI-6",
+    "summary": "Implement Core Business Logic: ShortenerService",
+    "description": "Create the \u0060ShortenerService\u0060 class in \u0060Shortener.Core\u0060. This service encapsulates the core business logic, orchestrating interactions between \u0060ILinkRepository\u0060 and \u0060IShortCodeGenerator\u0060. It handles creating short links (including checking for existing long URLs per D002), retrieving original URLs, and managing usage counts.",
+    "acceptanceCriteriaIds": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6",
+      "AC-8"
+    ],
+    "dependsOn": [
+      "WI-1",
+      "WI-2",
+      "WI-3"
+    ],
+    "risk": "medium",
+    "filesLikelyTouched": [
+      "src/Shortener.Core/ShortenerService.cs"
+    ]
+  },
+  {
+    "key": "WI-7",
+    "summary": "Define API DTOs: CreateShortLinkRequest and ShortLinkResponse",
+    "description": "Create the \u0060CreateShortLinkRequest\u0060 and \u0060ShortLinkResponse\u0060 data transfer objects in \u0060Shortener.Api/Models\u0060. These DTOs define the expected request body for link creation and the structure of API responses.",
+    "acceptanceCriteriaIds": [
+      "AC-1",
+      "AC-4"
+    ],
+    "dependsOn": [],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "src/Shortener.Api/Models/CreateShortLinkRequest.cs",
+      "src/Shortener.Api/Models/ShortLinkResponse.cs"
+    ]
+  },
+  {
+    "key": "WI-8",
+    "summary": "Implement API Endpoint: POST /links",
+    "description": "Implement the \u0060POST /links\u0060 API endpoint in \u0060Shortener.Api/Program.cs\u0060. This endpoint will receive \u0060CreateShortLinkRequest\u0060, validate the input URL (AC-6), utilize \u0060ShortenerService\u0060 to create or retrieve a short link (AC-1, AC-8), and return a \u0060ShortLinkResponse\u0060 with a 201 Created or 200 OK status.",
+    "acceptanceCriteriaIds": [
+      "AC-1",
+      "AC-6",
+      "AC-8"
+    ],
+    "dependsOn": [
+      "WI-6",
+      "WI-7"
+    ],
+    "risk": "high",
+    "filesLikelyTouched": [
+      "src/Shortener.Api/Program.cs"
+    ]
+  },
+  {
+    "key": "WI-9",
+    "summary": "Implement API Endpoints: GET /{code} and GET /links/{code}/stats",
+    "description": "Implement the \u0060GET /{code}\u0060 and \u0060GET /links/{code}/stats\u0060 API endpoints in \u0060Shortener.Api/Program.cs\u0060. \u0060GET /{code}\u0060 will redirect to the original URL (AC-2) or return 404 Not Found (AC-3). \u0060GET /links/{code}/stats\u0060 will return the usage count (AC-4) or 404 Not Found (AC-5). Both will utilize \u0060ShortenerService\u0060.",
+    "acceptanceCriteriaIds": [
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5"
+    ],
+    "dependsOn": [
+      "WI-6",
+      "WI-7",
+      "WI-8"
+    ],
+    "risk": "high",
+    "filesLikelyTouched": [
+      "src/Shortener.Api/Program.cs"
+    ]
+  },
+  {
+    "key": "WI-10",
+    "summary": "Configure ASP.NET Core: DI, Health Checks, OpenAPI, Logging",
+    "description": "Configure \u0060Shortener.Api/Program.cs\u0060 to set up Dependency Injection for \u0060ShortenerService\u0060, \u0060InMemoryLinkRepository\u0060, and \u0060EightCharacterAlphanumericCodeGenerator\u0060. Add health check endpoints (AC-7), structured logging configuration, and OpenAPI/Swagger generation.",
+    "acceptanceCriteriaIds": [
+      "AC-7"
+    ],
+    "dependsOn": [
+      "WI-4",
+      "WI-5",
+      "WI-6",
+      "WI-8",
+      "WI-9"
+    ],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "src/Shortener.Api/Program.cs"
+    ]
+  },
+  {
+    "key": "WI-11",
+    "summary": "Implement Unit Tests for Core and Infrastructure",
+    "description": "Create \u0060ShortenerServiceTests.cs\u0060, \u0060InMemoryLinkRepositoryTests.cs\u0060, and \u0060EightCharacterAlphanumericCodeGeneratorTests.cs\u0060 in \u0060tests/Shortener.UnitTests\u0060 to verify the functionality of the core business logic and infrastructure components.",
+    "acceptanceCriteriaIds": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6",
+      "AC-8"
+    ],
+    "dependsOn": [
+      "WI-4",
+      "WI-5",
+      "WI-6"
+    ],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "tests/Shortener.UnitTests/ShortenerServiceTests.cs",
+      "tests/Shortener.UnitTests/InMemoryLinkRepositoryTests.cs",
+      "tests/Shortener.UnitTests/EightCharacterAlphanumericCodeGeneratorTests.cs"
+    ]
+  },
+  {
+    "key": "WI-12",
+    "summary": "Implement Integration Tests for API Endpoints",
+    "description": "Create \u0060ShortenerApiIntegrationTests.cs\u0060 in \u0060tests/Shortener.IntegrationTests\u0060 to verify end-to-end functionality of the API endpoints, including \u0060POST /links\u0060, \u0060GET /{code}\u0060, \u0060GET /links/{code}/stats\u0060, and \u0060/health\u0060 using a test host.",
+    "acceptanceCriteriaIds": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6",
+      "AC-7",
+      "AC-8"
+    ],
+    "dependsOn": [
+      "WI-8",
+      "WI-9",
+      "WI-10"
+    ],
+    "risk": "low",
+    "filesLikelyTouched": [
+      "tests/Shortener.IntegrationTests/ShortenerApiIntegrationTests.cs"
+    ]
+  }
+]

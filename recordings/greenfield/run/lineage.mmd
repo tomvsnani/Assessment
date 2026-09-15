@@ -1,0 +1,36 @@
+graph LR
+  spec["spec<br/>requirements"]
+  design["design<br/>design"]
+  spec --> design
+  plan["plan<br/>plan"]
+  spec --> plan
+  design --> plan
+  test_plan["test-plan<br/>test-design"]
+  spec --> test_plan
+  plan --> test_plan
+  implementation["implementation<br/>implement"]
+  spec --> implementation
+  design --> implementation
+  plan --> implementation
+  test_report["test-report<br/>verify"]
+  implementation --> test_report
+  documentation["documentation<br/>docs"]
+  design --> documentation
+  implementation --> documentation
+  review["review<br/>review"]
+  implementation --> review
+  test_report --> review
+  change_record["change-record<br/>release"]
+  implementation --> change_record
+  test_report --> change_record
+  review --> change_record
+  D001{"Approved by dashboard-user"}
+  spec -.-> D001
+  D002{"OptionChosen by dashboard-user"}
+  spec -.-> D002
+  D003{"OptionChosen by dashboard-user"}
+  spec -.-> D003
+  D004{"Approved by dashboard-user"}
+  design -.-> D004
+  D005{"Approved by dashboard-user"}
+  change_record -.-> D005

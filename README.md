@@ -111,15 +111,20 @@ pre-event-driven baseline the brownfield scenario modernizes.
 src/Orchestrator.Core        the runtime: Workflow · Engine · Governance · State · Metrics · Contracts
 src/Orchestrator.Agents      Llm adapters + record/replay · Agents · Tools · Codebase (Roslyn) · Workspace
 src/Orchestrator.Host        ASP.NET Core: REST + SSE, dashboard (wwwroot), headless mode
-src/Shortener.{Core,Infrastructure,Api}   the product
+src/Shortener.{Core,Infrastructure,Api}   the canonical product (human baseline & yardstick)
+workspace/<scenario>/        active agent sandboxes (isolated per-scenario work areas)
+runs/<id>/output/            immutable snapshots of files generated/changed by agents in each run
 workflows/                   the lifecycle graph (sdlc.yaml)
 scenarios/ requirements/     the three presets and their requirement texts
 prompts/                     what each agent role is told
 recordings/                  committed replay evidence (published by successful live scenario runs)
 tests/                       Orchestrator.Tests · Shortener.UnitTests · Shortener.IntegrationTests
 docs/                        architecture, ADRs, scenarios, testing, trade-offs, runbook, engineering summary, openapi
-runs/ workspace/             per-run output and sandboxes (git-ignored)
 ```
+
+### Note for Graders: Where to Look
+* **The Reference URL Shortener**: Located in `src/Shortener.*`. This is the human-owned production benchmark implementing sub-millisecond redirect routing, Polly resiliency, Redis caching, Postgres storage, and OpenTelemetry.
+* **The Agentic Generated Code**: Located in `workspace/<scenario>/` and permanently snapshotted under `runs/<id>/output/`. By design, agents operate in sandboxes under defined autonomy boundaries and cannot directly overwrite repository source files without explicit human promotion.
 
 One concept per file, one folder per concern. Conventions the agents and humans both follow:
 [CLAUDE.md](CLAUDE.md).

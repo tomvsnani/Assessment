@@ -53,7 +53,7 @@ public static class HeadlessMode
             request = new RunRequest(Requirement: new RequirementInput(requirement.Title, requirement.Text), Baseline: ValueOf(args, "--baseline"),
                 Live: true, Provider: ValueOf(args, "--provider"), Model: ValueOf(args, "--model"), Approver: unattended ? "unattended" : "console");
         }
-        else if (ValueOf(args, "--replay") is { } runId)
+        else if ((ValueOf(args, "--replay") ?? ValueOf(args, "--replay-of")) is { } runId)
         {
             request = new RunRequest(ReplayOf: runId, Approver: "replay");
         }

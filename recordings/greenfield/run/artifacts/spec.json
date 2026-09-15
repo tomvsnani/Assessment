@@ -1,0 +1,130 @@
+{
+  "title": "URL Shortener Service, First Version",
+  "problemStatement": "The organization currently lacks a dedicated internal service for shortening long URLs. Engineers need a reliable, discoverable, and auditable way to generate short links for internal use, redirect users, and track the usage of these links. The solution must be a .NET 9 web service, production-grade, and designed for future extensibility to alternative storage solutions.",
+  "inScope": [
+    "Development of a .NET 9 web service with a JSON API.",
+    "Implementation of a \u0060POST /links\u0060 endpoint to create new short links, returning the generated short code and the full short URL.",
+    "Implementation of a \u0060GET /{code}\u0060 endpoint to perform a 302 Found redirect to the original long URL.",
+    "Implementation of a \u0060GET /links/{code}/stats\u0060 endpoint to return the total number of times a specific short link has been followed.",
+    "Initial data storage using an in-memory solution, with a design that allows for straightforward replacement with PostgreSQL.",
+    "Inclusion of health endpoints for load balancer integration.",
+    "Robust error handling and sensible behavior when the backing data store (even in-memory initially) is slow or unavailable, implying timeouts and circuit breakers.",
+    "Implementation of structured logging suitable for Splunk ingestion, ensuring no PII is logged.",
+    "Generation of short codes that are not sequentially guessable.",
+    "Development of comprehensive unit tests for all business logic.",
+    "Provision of an OpenAPI / Swagger description for the API."
+  ],
+  "outOfScope": [
+    "Support for custom aliases for short links.",
+    "Functionality for setting an expiry date or time for short links.",
+    "Development of any user interface (UI) for the service.",
+    "Any features beyond those explicitly requested in the requirement (e.g., user authentication, link management dashboard).",
+    "Support for any platform or runtime other than .NET 9."
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-1",
+      "given": "A valid, well-formed long URL",
+      "when": "A \u0060POST /links\u0060 request is made with the URL",
+      "then": "A 201 Created response is returned, containing a unique, non-guessable short code and the complete short URL (e.g., \u0060https://short.svc/{code}\u0060), and the URL mapping is stored."
+    },
+    {
+      "id": "AC-2",
+      "given": "A previously shortened URL with a valid short code",
+      "when": "A \u0060GET /{code}\u0060 request is made to the service",
+      "then": "A 302 Found response is returned, redirecting the client to the original long URL, and the usage count for that short code is incremented."
+    },
+    {
+      "id": "AC-3",
+      "given": "A short code that does not correspond to any known shortened URL",
+      "when": "A \u0060GET /{code}\u0060 request is made to the service",
+      "then": "A 404 Not Found response is returned, with appropriate problem details."
+    },
+    {
+      "id": "AC-4",
+      "given": "A previously shortened URL with a valid short code that has been followed \u0027n\u0027 times",
+      "when": "A \u0060GET /links/{code}/stats\u0060 request is made",
+      "then": "A 200 OK response is returned, containing the current usage count \u0027n\u0027 for that short code."
+    },
+    {
+      "id": "AC-5",
+      "given": "A short code that does not correspond to any known shortened URL",
+      "when": "A \u0060GET /links/{code}/stats\u0060 request is made",
+      "then": "A 404 Not Found response is returned, with appropriate problem details."
+    },
+    {
+      "id": "AC-6",
+      "given": "An invalid or malformed URL (e.g., empty string, not a valid URI scheme)",
+      "when": "A \u0060POST /links\u0060 request is made with the invalid URL",
+      "then": "A 400 Bad Request response is returned, with problem details indicating the URL validation failure."
+    },
+    {
+      "id": "AC-7",
+      "given": "The service is running and accessible",
+      "when": "The health endpoint (e.g., \u0060/health\u0060) is accessed",
+      "then": "A 200 OK response is returned, indicating the service\u0027s operational status."
+    },
+    {
+      "id": "AC-8",
+      "given": "The same long URL is submitted multiple times to the \u0060POST /links\u0060 endpoint",
+      "when": "Subsequent \u0060POST /links\u0060 requests are made with an already shortened URL (per AMB-1)",
+      "then": "The service returns the *existing* short code and URL associated with that long URL, rather than generating a new one."
+    }
+  ],
+  "ambiguities": [
+    {
+      "id": "AMB-1",
+      "question": "If the same long URL is submitted multiple times to \u0060POST /links\u0060, should a new short code be generated each time, or should the existing short code be returned?",
+      "options": [
+        {
+          "id": "A",
+          "summary": "Always generate a new, unique short code for every submission, even for the same long URL.",
+          "tradeOff": "Simpler implementation as no pre-check is needed. However, it leads to multiple short codes mapping to the same destination, increasing storage consumption and potentially confusing users who expect a consistent short link for a given URL."
+        },
+        {
+          "id": "B",
+          "summary": "Return the existing short code if the long URL has already been shortened. Only generate a new code if the URL is new to the system.",
+          "tradeOff": "Requires a lookup mechanism to check for existing long URLs, adding complexity to the write path. However, it optimizes storage, provides a stable and canonical short URL for each destination, and offers a better user experience by preventing redundant short codes."
+        }
+      ],
+      "recommendedOptionId": "B",
+      "resolvedOptionId": "B"
+    },
+    {
+      "id": "AMB-2",
+      "question": "What are the specific requirements for the generated short code\u0027s length and character set? The requirement states \u0027not guessable\u0027 but provides no specifics.",
+      "options": [
+        {
+          "id": "A",
+          "summary": "Use a fixed-length alphanumeric string (e.g., 6-8 characters, a-z, A-Z, 0-9).",
+          "tradeOff": "Provides a predictable short code format, balances \u0027unguessability\u0027 with conciseness for internal use, and is straightforward to implement. The fixed length might imply a maximum capacity of unique codes."
+        },
+        {
+          "id": "B",
+          "summary": "Use a variable-length alphanumeric string, dynamically adjusting length to ensure sufficient capacity and \u0027unguessability\u0027.",
+          "tradeOff": "Offers maximum capacity for unique codes without prematurely running out of combinations. However, it complicates code generation logic and makes short codes less predictable in length, which might affect readability or internal communication."
+        },
+        {
+          "id": "C",
+          "summary": "Allow a broader character set (e.g., including hyphens \u0027-\u0027, underscores \u0027_\u0027, or other URL-safe characters).",
+          "tradeOff": "Increases the total number of possible unique codes significantly for a given length. However, it might make codes slightly harder to type or verbally communicate, and careful URL-encoding considerations are necessary."
+        }
+      ],
+      "recommendedOptionId": "A",
+      "resolvedOptionId": "A"
+    }
+  ],
+  "assumptions": [
+    "Short codes will be case-sensitive to maximize the number of unique combinations for a given length.",
+    "Short codes will be generated using a cryptographically secure pseudo-random number generator to ensure unguessability, as per the \u0027not guessable\u0027 requirement.",
+    "The service will return standard HTTP status codes (e.g., 200 OK, 201 Created, 302 Found, 400 Bad Request, 404 Not Found, 500 Internal Server Error) for all API interactions.",
+    "Structured logging will utilize a widely accepted format (e.g., JSON) to ensure compatibility with Splunk and other log aggregation systems, adhering to \u0027NoSecretsPolicy\u0027 and \u0027PiiInLogsPolicy\u0027 by avoiding sensitive data.",
+    "Input URL validation for \u0060POST /links\u0060 will verify that the provided \u0027url\u0027 is a well-formed absolute URI with a valid scheme (e.g., http, https).",
+    "The initial in-memory data store will be implemented using a thread-safe collection (e.g., \u0060ConcurrentDictionary\u003Cstring, string\u003E\u0060) to handle concurrent requests reliably.",
+    "\u0022Sensible behaviour when the database is slow\u0022 implies the implementation of retry mechanisms with exponential backoff and circuit breakers for any external data store interactions to maintain service resilience.",
+    "The service will implement graceful shutdown to ensure ongoing requests are completed and resources are released cleanly upon termination.",
+    "The OpenAPI description will be generated automatically, likely using a tool like Swashbuckle, integrated into the ASP.NET Core application.",
+    "Based on AMB-2 Option A, short codes will be fixed at 8 alphanumeric characters (a-z, A-Z, 0-9). This provides a substantial number of unique combinations while remaining concise.",
+    "The service will support standard health check patterns (e.g., \u0060/health\u0060 for liveness, \u0060/ready\u0060 for readiness if more granular checks are needed) per production-grade requirements."
+  ]
+}
