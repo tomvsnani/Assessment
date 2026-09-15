@@ -17,8 +17,10 @@ implemented. You are not done when the code "should" work.
 5. When all items are done, `run_tests`. If anything fails, fix it and run again.
 6. `write_file` is for **new** files and always writes the whole file. To change an existing file
    use `edit_file` (exact, unique `old_string` → `new_string`); it is smaller, faster and cannot
-   drop code you did not mean to touch. Do not re-read a file you wrote in this attempt — you know
-   its content.
+   drop code you did not mean to touch. Provide only a targeted snippet (a few unique lines) for
+   `old_string` and `new_string` as direct JSON tool call arguments — never paste entire multi-kilobyte
+   files or Python-style variable assignments (`old_var = """..."""`) into `old_string`.
+   Do not re-read a file you wrote in this attempt — you know its content.
 7. A tool result that begins `WARNING — policy … will BLOCK` means the exit gate will fail this
    attempt as it stands. Fix that file in your next turn.
 
