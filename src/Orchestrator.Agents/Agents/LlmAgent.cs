@@ -2,6 +2,8 @@ using Orchestrator.Agents.Codebase;
 using Orchestrator.Agents.Llm;
 using Orchestrator.Agents.Tools;
 using Orchestrator.Core.Contracts;
+using Orchestrator.Core.Governance;
+using Orchestrator.Core.Governance.Policies;
 
 namespace Orchestrator.Agents.Agents;
 
@@ -35,7 +37,7 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
 
     public async Task<StageResult> ExecuteAsync(StageContext context)
     {
-        var tools = Tools(context.Workspace);
+        var tools = Tools(context);
         var system = Deps.Prompts.SystemPromptFor(Role);
         var user = ContextRenderer.Render(context, Reads, ExtraContext(context));
 
@@ -61,12 +63,15 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
         }
     }
 
-    private List<ITool> Tools(IWorkspace workspace)
+    private List<ITool> Tools(StageContext context)
     {
+        var workspace = context.Workspace;
         var tools = new List<ITool> { new ListFilesTool(workspace), new ReadFileTool(workspace), new GrepTool(workspace) };
         if (CanWrite)
         {
-            tools.Add(new WriteFileTool(workspace));
+            var check = new FilePolicyCheck(Deps.FilePolicies, context.Stage);
+            tools.Add(new WriteFileTool(workspace, check));
+            tools.Add(new EditFileTool(workspace, check));
         }
 
         if (CanBuild)
@@ -97,4 +102,11 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
 }
 
 /// <summary>What every agent needs; built once by the CLI.</summary>
-public sealed record AgentDependencies(ILlmClient Llm, PromptLibrary Prompts, Func<IWorkspace, ICodebaseIndex> IndexFor, IRunTrace Trace, Action<string> Log);
+/// <param name="FilePolicies">Content policies the write tools pre-check so an agent hears about a block in the next turn, not at the exit gate.</param>
+public sealed record AgentDependencies(ILlmClient Llm, PromptLibrary Prompts, Func<IWorkspace, ICodebaseIndex> IndexFor, IRunTrace Trace, Action<string> Log, IReadOnlyList<IPolicy> FilePolicies)
+{
+    public AgentDependencies(ILlmClient llm, PromptLibrary prompts, Func<IWorkspace, ICodebaseIndex> indexFor, IRunTrace trace, Action<string> log)
+        : this(llm, prompts, indexFor, trace, log, [new NoSecretsPolicy(), new PiiInLogsPolicy()])
+    {
+    }
+}

@@ -161,7 +161,8 @@ about files that no longer existed. See [tradeoffs.md](tradeoffs.md).
 | `schema-change-needs-approval` | `Governance/Policies/SchemaChangeNeedsApprovalPolicy.cs` | Any DDL must name a table the *approved* design mentions. |
 | `segregation-of-duties` | `Governance/Policies/SegregationOfDutiesPolicy.cs` | The reviewer role is never the implementer role. |
 | Sandbox | `Workspace/FileWorkspace.cs` | Agents cannot read or write outside `workspace/<run>/`. |
-| Tool allow-list | `Tools/` | No shell. Only read/write/list/grep and `dotnet build` / `dotnet test`. |
+| Tool allow-list | `Tools/` | No shell. Only read/write/edit/list/grep and `dotnet build` / `dotnet test`. |
+| Policy pre-check on writes | `Tools/FilePolicyCheck.cs` | `write_file`/`edit_file` evaluate `no-secrets` and `pii-in-logs` on the file at once and warn in the tool result; the exit gate still enforces. |
 | Bounded everything | `RetryPolicy`, `on_failure.max_loops`, `AgentToolLoop` iteration cap, provider retry cap | No unbounded loop anywhere. |
 | Safe stop | `Engine/SafeStop.cs` | One switch cancels agents, then `Saga` rolls back completed stages newest-first. |
 | Audit | `Governance/AuditLog.cs` | Governance events written with a hash chain; `sdlc verify-audit` detects edits. |
@@ -198,11 +199,11 @@ rejections/revisions, MTTR (first failed attempt → completion), per-stage and 
 | requirements | LLM | requirement (+ repo map & impact analysis when code exists) | `spec` — JSON: scope, Given/When/Then criteria, ambiguities with options, assumptions | read-only |
 | architect | LLM | spec | `design` — markdown: components, data flow, schema changes, ADRs, impacted files, risks | read-only |
 | planner | LLM | spec, design | `plan` — JSON work items: key, AC ids, depends-on, risk, files; validated as a DAG | read-only |
-| implementer | LLM | spec, design, plan (+ feedback) | `implementation` — summary + files changed (computed by the orchestrator) | read/write/build/test |
+| implementer | LLM | spec, design, plan (+ feedback) | `implementation` — summary + files changed (computed by the orchestrator) | read/write/edit/build/test |
 | test-designer | LLM | spec, design, plan | `test-plan` — independent test cases per AC, reviewer checklist | read-only |
 | verifier | **deterministic** | — | `test-report` from `dotnet build` + `dotnet test`; failure → feedback | build/test |
 | reviewer | LLM | spec, design, implementation, test-plan, test-report | `review` ending in `VERDICT: APPROVE` or `REQUEST_CHANGES` | read-only |
-| doc-writer | LLM | spec, design, implementation | `documentation` — feature doc + runbook written into the workspace | read/write |
+| doc-writer | LLM | spec, design, implementation | `documentation` — feature doc + runbook written into the workspace | read/write/edit |
 | release-manager | LLM | everything above | `change-record` — JSON: risk rating, blast radius, rollback plan, evidence, checklist | read-only |
 
 Every LLM role shares one loop (`AgentToolLoop`): send system prompt + conversation + tool

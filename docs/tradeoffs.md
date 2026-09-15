@@ -21,7 +21,9 @@ Honest list. Each entry says what was chosen, what it costs, and what would chan
 
 | Choice | Cost | When to revisit |
 |---|---|---|
-| Whole-file `write_file`, no diff tool | Large files re-sent in full; more tokens, occasional dropped code. | A `str_replace` edit tool is the standard fix; deferred for scope. |
+| `write_file` for new files, `edit_file` (exact unique match) for changes | An edit whose `old_string` is not unique is refused; the model must quote more context. | Added after `greenfield-20260915-163443`: the implementer re-sent an 11 KB `Program.cs` whole on every fix. |
+| Policies are pre-checked in the write tools, enforced at the exit gate | Two evaluations per file; the pre-check sees one file at a time so cross-file policies (schema change, segregation of duties) stay gate-only. | Same run: 46 turns of work, then `pii-in-logs` blocked at the gate with no retry left. Now the agent hears it in the next turn. |
+| Implementer builds per project, not per work item | A compile error surfaces a few files later than it could. | Same run: the implementer spent 15.7 of 24 minutes in 147 model calls; every `run_build` is a turn with a 40–75K-token context. |
 | No streaming of model output | The dashboard shows "calling the model, 40s" rather than tokens as they arrive. | Provider SSE streaming is a contained change in each client. |
 | Model choice is cost-driven | Opus-class models produce better code; Flash/Sonnet-class models are 2–10x cheaper. | Per-role routing (cheap model for planner/doc-writer, strong model for architect/implementer/reviewer) is the next lever. |
 | Free-tier keys | Daily request caps (20/day on some Gemini models) can stall a run mid-lifecycle. | Pay-as-you-go on any provider removes the stall; the run itself is unchanged. |

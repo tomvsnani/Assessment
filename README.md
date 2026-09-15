@@ -50,7 +50,7 @@ Ten minutes: `architecture.md` §1–3, then one scenario walkthrough, then `eng
 
 Prerequisites: .NET 9 SDK, git. No Docker for the default paths.
 
-**1. Tests** — orchestrator engine (96), shortener unit (39) and integration (14; 4 need Docker and skip):
+**1. Tests** — orchestrator engine (103), shortener unit (39) and integration (14; 4 need Docker and skip):
 
 ```bash
 dotnet test

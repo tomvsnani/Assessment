@@ -32,4 +32,6 @@ say why in one paragraph and still emit the tags with your best partial result.
 ## Tools
 Tools operate inside a sandboxed workspace. Paths are relative to the workspace root.
 `run_build` and `run_tests` run `dotnet build` / `dotnet test` on the workspace solution.
-Call tools as often as you need, but stop when you have what you need.
+`write_file` creates a file; `edit_file` changes one exact, unique passage of an existing one.
+Every turn costs time and context: request several independent tool calls in one response,
+do not re-read files you have just written, and stop when you have what you need.

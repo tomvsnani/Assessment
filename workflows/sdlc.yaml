@@ -37,7 +37,8 @@ stages:
   - id: implement
     agent: implementer
     depends_on: [plan]
-    retry: { max_attempts: 2, base_delay_seconds: 5 }
+    # 3 attempts: a policy block or a malformed final message must not end the run on its own.
+    retry: { max_attempts: 3, base_delay_seconds: 5 }
     exit:
       artifacts: [implementation]
       policies: [no-secrets, pii-in-logs, schema-change-needs-approval]

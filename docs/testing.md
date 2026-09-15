@@ -4,7 +4,7 @@ Two systems are tested: the orchestrator (does the runtime do what the assessmen
 and the shortener (is the product production-grade?). Both run with `dotnet test`, no key, no
 Docker; Docker-backed tests opt in.
 
-## Orchestrator — `tests/Orchestrator.Tests` (96 tests)
+## Orchestrator — `tests/Orchestrator.Tests` (103 tests)
 
 The engine is tested **without any model**: `FakeAgents` are delegates that script exactly what a
 stage does, `ScriptedApprover` plays the human, `InMemoryWorkspace` is the sandbox. `TestRun` wires
@@ -39,6 +39,7 @@ when run, then these events happened".
 | Gemini wire format; a 200 with no candidates / no content / empty parts is a transient failure | `GeminiClientTests` |
 | Roslyn repo map, deterministic impact ranking | `CodebaseIndexTests` |
 | Sandbox refuses paths outside the root; checkpoint/restore; build outputs ignored | `FileWorkspaceTests` |
+| Write tools warn at once when `no-secrets`/`pii-in-logs` would block; `edit_file` requires a unique match and refuses ambiguous or missing ones | `WriteAndEditToolTests` (5) |
 
 Not unit-tested, verified by running: the dashboard (manual + browser), SSE streaming, the live
 provider path (run directories and recordings prove it; see the [scenario walkthroughs](scenarios/README.md)).
