@@ -14,6 +14,9 @@ public sealed class ImplementerAgent(AgentDependencies deps) : LlmAgent(deps)
 
     public override string Role => "implementer";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads => [RequirementsAgent.ArtifactName, ArchitectAgent.ArtifactName, PlannerAgent.ArtifactName];
 
     protected override bool CanWrite => true;

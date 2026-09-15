@@ -81,6 +81,44 @@ public class AgentLoopAndParsingTests
 
         act.Should().Throw<AgentOutputException>().WithMessage("*<artifact name=\"design\">*");
     }
+
+    // Seen live (greenfield-20260915-162943): the whole spec as one ```json fence, no <artifact> tag, twice in a row.
+    [Fact]
+    public void Given_message_that_is_one_fenced_document_and_no_tag_When_recovered_Then_the_fence_body_is_the_artifact()
+    {
+        const string text = """
+            ```json
+            {
+              "title": "URL Shortener Service, First Version",
+              "assumptions": []
+            }
+            ```
+
+            """;
+
+        ArtifactParser.RecoverSingle(text).Should().Be("""
+            {
+              "title": "URL Shortener Service, First Version",
+              "assumptions": []
+            }
+            """);
+    }
+
+    [Fact]
+    public void Given_message_that_is_bare_json_When_recovered_Then_it_is_the_artifact()
+    {
+        ArtifactParser.RecoverSingle("  {\"title\": \"x\"} \n").Should().Be("{\"title\": \"x\"}");
+        ArtifactParser.RecoverSingle("[{\"key\": \"WI-1\"}]").Should().Be("[{\"key\": \"WI-1\"}]");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("I could not produce the spec because the requirement is empty.")]
+    [InlineData("First:\n```json\n{}\n```\nSecond:\n```json\n[]\n```")]
+    public void Given_prose_empty_or_ambiguous_message_When_recovered_Then_nothing_is_recovered(string text)
+    {
+        ArtifactParser.RecoverSingle(text).Should().BeNull("only an unambiguous single document may stand in for the tagged artifact");
+    }
 }
 
 public class TruncatedAnswerTests

@@ -28,6 +28,9 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
     /// <summary>Extra context for the user message (repo map, impact analysis, ...). Null for none.</summary>
     protected virtual string? ExtraContext(StageContext ctx) => null;
 
+    /// <summary>The one artifact this role emits; used to recover it when the model omits the &lt;artifact&gt; wrapper.</summary>
+    protected abstract string OwnedArtifact { get; }
+
     protected abstract StageResult Parse(string finalText, StageContext ctx, IReadOnlyDictionary<string, string> artifacts);
 
     public async Task<StageResult> ExecuteAsync(StageContext context)
@@ -40,14 +43,21 @@ public abstract class LlmAgent(AgentDependencies deps) : IStageAgent
         var outcome = await loop.RunAsync(context.Stage.Id, Role, system, user, tools, context.CancellationToken, MaxIterations);
         Deps.Log($"{Role}: {outcome.Iterations} turns, {outcome.ToolCalls} tool calls, {outcome.InputTokens}+{outcome.OutputTokens} tokens");
 
+        var artifacts = ArtifactParser.Extract(outcome.FinalText);
+        if (artifacts.Count == 0 && ArtifactParser.RecoverSingle(outcome.FinalText) is { } recovered)
+        {
+            Deps.Log($"{Role}: final message had no <artifact> tag; recovered '{OwnedArtifact}' from the single document in it");
+            artifacts = new Dictionary<string, string>(StringComparer.Ordinal) { [OwnedArtifact] = recovered };
+        }
+
         try
         {
-            return Parse(outcome.FinalText, context, ArtifactParser.Extract(outcome.FinalText));
+            return Parse(outcome.FinalText, context, artifacts);
         }
         catch (AgentOutputException e)
         {
             return StageResult.Malformed(e.Message,
-                new Artifact("feedback", ArtifactKind.Feedback, $"Your previous final message could not be used: {e.Message}\nEnd with the required <artifact> block(s).", context.Stage.Id, []));
+                new Artifact("feedback", ArtifactKind.Feedback, $"Your previous final message could not be used: {e.Message}\nEnd your final message with exactly this wrapper around the artifact content and nothing else after it:\n<artifact name=\"{OwnedArtifact}\">\n...content...\n</artifact>", context.Stage.Id, []));
         }
     }
 

@@ -24,6 +24,35 @@ public static partial class ArtifactParser
             ? content
             : throw new AgentOutputException($"Final message did not contain <artifact name=\"{name}\">.");
 
+    /// <summary>
+    /// Format drift seen live: a model answers with the complete artifact as a single ```json fence,
+    /// or as bare JSON, and no &lt;artifact&gt; wrapper — twice in a row, ignoring the retry feedback.
+    /// Every role here owns exactly one artifact, so when the tags are absent and the message is
+    /// unambiguously one document, that document is the artifact. Returns null when the message is
+    /// prose, empty, or holds more than one fenced block; the caller then fails the attempt as before.
+    /// </summary>
+    public static string? RecoverSingle(string text)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        var fences = AnyFence().Matches(trimmed);
+        if (fences.Count == 1)
+        {
+            return fences[0].Groups["inner"].Value.Trim();
+        }
+
+        if (fences.Count == 0 && ((trimmed[0] == '{' && trimmed[^1] == '}') || (trimmed[0] == '[' && trimmed[^1] == ']')))
+        {
+            return trimmed;
+        }
+
+        return null;
+    }
+
     /// <summary>Models often wrap the body in ```json fences even when told not to; tolerate it.</summary>
     private static string StripFence(string body)
     {
@@ -36,6 +65,9 @@ public static partial class ArtifactParser
 
     [GeneratedRegex("^```[a-zA-Z]*\\s*\\n(?<inner>.*?)\\n```\\s*$", RegexOptions.Singleline)]
     private static partial Regex Fenced();
+
+    [GeneratedRegex("```[a-zA-Z]*\\s*\\n(?<inner>.*?)\\n```", RegexOptions.Singleline)]
+    private static partial Regex AnyFence();
 }
 
 public sealed class AgentOutputException(string message) : Exception(message);

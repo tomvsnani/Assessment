@@ -13,6 +13,9 @@ public sealed partial class ReviewerAgent(AgentDependencies deps) : LlmAgent(dep
 
     public override string Role => "reviewer";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads =>
         [RequirementsAgent.ArtifactName, ArchitectAgent.ArtifactName, ImplementerAgent.ArtifactName, TestDesignerAgent.ArtifactName, VerifierAgent.ArtifactName];
 

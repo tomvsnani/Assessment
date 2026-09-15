@@ -12,6 +12,9 @@ public sealed class TestDesignerAgent(AgentDependencies deps) : LlmAgent(deps)
 
     public override string Role => "test-designer";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads => [RequirementsAgent.ArtifactName, ArchitectAgent.ArtifactName, PlannerAgent.ArtifactName];
 
     protected override int MaxIterations => 12;

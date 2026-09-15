@@ -10,6 +10,9 @@ public sealed class ArchitectAgent(AgentDependencies deps) : LlmAgent(deps)
 
     public override string Role => "architect";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads => [RequirementsAgent.ArtifactName];
 
     protected override int MaxIterations => 20;

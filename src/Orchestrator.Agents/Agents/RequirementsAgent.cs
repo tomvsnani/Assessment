@@ -10,6 +10,9 @@ public sealed class RequirementsAgent(AgentDependencies deps) : LlmAgent(deps)
 
     public override string Role => "requirements";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads => [];
 
     protected override int MaxIterations => 15;

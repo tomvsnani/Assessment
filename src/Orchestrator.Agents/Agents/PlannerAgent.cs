@@ -9,6 +9,9 @@ public sealed class PlannerAgent(AgentDependencies deps) : LlmAgent(deps)
 
     public override string Role => "planner";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads => [RequirementsAgent.ArtifactName, ArchitectAgent.ArtifactName];
 
     protected override int MaxIterations => 10;

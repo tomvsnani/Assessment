@@ -12,6 +12,9 @@ public sealed class ReleaseManagerAgent(AgentDependencies deps) : LlmAgent(deps)
 
     public override string Role => "release-manager";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads =>
         [RequirementsAgent.ArtifactName, ArchitectAgent.ArtifactName, ImplementerAgent.ArtifactName, VerifierAgent.ArtifactName, ReviewerAgent.ArtifactName, DocWriterAgent.ArtifactName];
 

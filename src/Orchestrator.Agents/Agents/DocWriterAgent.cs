@@ -9,6 +9,9 @@ public sealed class DocWriterAgent(AgentDependencies deps) : LlmAgent(deps)
 
     public override string Role => "doc-writer";
 
+
+    protected override string OwnedArtifact => ArtifactName;
+
     protected override IReadOnlyList<string> Reads =>
         [RequirementsAgent.ArtifactName, ArchitectAgent.ArtifactName, ImplementerAgent.ArtifactName];
 
